@@ -8,8 +8,8 @@ from flenv.src.env import Environment
 class DeepQNetwork():
 
     def __init__(self, input_size, action_size, num_episodes, \
-                 explore_prob=0.1 ,gamma=0.9, learning_rate=0.01, max_memory_size=10000, \
-                 max_steps=10000, batch_size=1000, name='DeepQNetwork'):
+                 explore_prob=0.1 ,gamma=0.9, learning_rate=0.01, max_memory_size=1000, \
+                 max_steps=10000, batch_size=50, name='DeepQNetwork'):
         self.input_size = input_size # tuple representing size of input
         self.action_size = action_size # of available actions
         self.batch_size = batch_size
@@ -32,6 +32,18 @@ class DeepQNetwork():
         self.model = self.build(name)
 
         self.saver = tf.train.Saver()
+
+        self.reward = tf.Variable()
+
+        self._initialize_tensorboard()
+
+    def _initialize_tensorboard(self):
+        self.writer = tf.summary.FileWriter("./tensorboard/dqn/1")
+
+        tf.summary.scalar("Loss", self.loss)
+        tf.summary.scalar("Total reward", self.reward)
+
+        self.write_op = tf.summary.merge_all()
 
     def build(self, name):# Build the network
         with tf.variable_scope(name):
@@ -141,13 +153,28 @@ class DeepQNetwork():
     def _reset_env(self):
         self.env = Environment(render=False, max_projectiles=100, seed=0, scale=5, fov_size=200)
 
+    def restore_checkpoint(self, checkpoint):
+        self.restore_last_checkpoint(checkpoint)
+
+    def restore_last_checkpoint(self, checkpoint=None):
+        import os
+        ckpt = tf.train.get_checkpoint_state(self.checkpoint_dir)
+        if ckpt and ckpt.model_checkpoint_path:
+            ckpt_name = os.path.basename(ckpt.model_checkpoint_path)
+            if checkpoint:
+                ckpt_name = "model%s.ckpt" % checkpoint
+            self.saver.restore(self.sess, os.path.join(self.checkpoint_dir, ckpt_name))
+            return True
+        else:
+            return False
+
     def train(self):
         self._initialize_memory()
 
         for episode in range(self.num_episodes):
             self._reset_env()
 
-            total_reward = 0
+            self.sess.run(self.reward.assign(0))
 
             # Stack the frames
 
@@ -158,7 +185,7 @@ class DeepQNetwork():
 
                 next_state, reward = self.env.step(action)
 
-                total_reward += reward
+                self.sess.run(self.reward + reward)
 
                 if step % 5 == 0: # Every 5 frames update the memory
                     self.memory.add([state, action_vec, reward, next_state, self.env.done])
@@ -182,13 +209,20 @@ class DeepQNetwork():
                        target_q.append(sample[2] + self.gamma * np.max(next_qs[i]))
 
                 # Run and compute loss against target_q given action
-                _, loss = self.sess.run([self.optimizer, self.loss], feed_dict={
+                _, loss, summary = self.sess.run([self.optimizer, self.loss, self.write_op], feed_dict={
                     self.inputs_: batch_states,
                     self.target_Q: np.array(target_q),
                     self.actions_: batch_actions
                 })
 
+                self.writer.add_summary(summary, episode)
+                self.writer.flush()
+
                 if self.env.done:
                     break
 
-                print('Episode: {}'.format(episode), 'Loss: {}'.format(loss), 'Total reward: {}'.format(total_reward))
+                print('Episode: {}'.format(episode), 'Loss: {}'.format(loss), 'Total reward: {}'.format(self.reward))
+
+            if episode % 5 == 0:
+                save_path = self.saver.save(self.sess, "checkpoints/model%s.ckpt" % i)
+                print("Model saved in path: %s" % save_path)
