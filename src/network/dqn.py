@@ -8,7 +8,7 @@ from flenv.src.env import Environment
 class DeepQNetwork():
 
     def __init__(self, input_size, action_size, num_episodes, \
-                 explore_prob=0.1 ,gamma=0.9, learning_rate=0.01, max_memory_size=100000, \
+                 explore_prob=0.1 ,gamma=0.9, learning_rate=0.01, max_memory_size=10000, \
                  max_steps=10000, batch_size=1000, name='DeepQNetwork'):
         self.input_size = input_size # tuple representing size of input
         self.action_size = action_size # of available actions
@@ -16,6 +16,8 @@ class DeepQNetwork():
         self.num_episodes = num_episodes
         self.max_steps = max_steps
         self.learning_rate = learning_rate
+
+        assert(batch_size <= max_memory_size, "Batch size must be less than maximum memory size!")
 
         self.explore_prob = explore_prob
 
@@ -27,7 +29,7 @@ class DeepQNetwork():
 
         self.sess = tf.Session()
 
-        self.network = self.build(name)
+        self.model = self.build(name)
 
         self.saver = tf.train.Saver()
 
@@ -45,7 +47,11 @@ class DeepQNetwork():
                                           strides=[4, 4],
                                           padding="VALID",
                                           kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d(),
-                                          name="conv1")
+                                          bias_initializer=tf.contrib.layers.xavier_initializer(),
+                                          use_bias=True,
+                                          name="conv1",
+                                          activation=tf.nn.elu
+                                          )
 
             self.conv1_out = tf.nn.elu(self.conv1, name="conv1_out")
 
@@ -55,7 +61,11 @@ class DeepQNetwork():
                                           strides=[2, 2],
                                           padding="VALID",
                                           kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d(),
-                                          name="conv2")
+                                          bias_initializer=tf.contrib.layers.xavier_initializer(),
+                                          use_bias=True,
+                                          name="conv2",
+                                          activation=tf.nn.elu
+                                          )
 
             self.conv2_out = tf.nn.elu(self.conv2, name="conv2_out")
 
@@ -65,7 +75,11 @@ class DeepQNetwork():
                                           strides=[2, 2],
                                           padding="VALID",
                                           kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d(),
-                                          name="conv3")
+                                          bias_initializer=tf.contrib.layers.xavier_initializer(),
+                                          use_bias=True,
+                                          name="conv3",
+                                          activation=tf.nn.elu
+                                          )
 
             self.conv3_out = tf.nn.elu(self.conv3, name="conv3_out")
 
@@ -80,7 +94,7 @@ class DeepQNetwork():
             self.output = tf.layers.dense(inputs=self.fc,
                                           kernel_initializer=tf.contrib.layers.xavier_initializer(),
                                           units=self.action_size,
-                                          activation=tf.nn.activation.tanh)
+                                          activation=tf.nn.tanh)
 
             self.Q = tf.reduce_sum(tf.multiply(self.output, self.actions_))
 
@@ -88,14 +102,16 @@ class DeepQNetwork():
 
             self.optimizer = tf.train.AdamOptimizer(self.learning_rate).minimize(self.loss)
 
+            self.sess.run(tf.global_variables_initializer())
+
             return self.output
 
 
-    def initialize_memory(self):
+    def _initialize_memory(self):
         while not self.memory.full:
             action, action_vec, explore_prob = self.generate_action(self.explore_prob)
 
-            state = self.env.state
+            state = self.env.raster_array
 
             next_state, reward = self.env.step(action)
 
@@ -103,6 +119,7 @@ class DeepQNetwork():
 
             if self.env.done:
                 self._reset_env()
+        print("Finished initializing memory")
 
     # See https://arxiv.org/pdf/1312.5602.pdf
     def generate_action(self, probability):
@@ -111,10 +128,12 @@ class DeepQNetwork():
         actions = np.zeros(self.action_size)
         if explore_prob < probability:
             # take a random action (generate a one-hot vector for it)
-            action = np.random.randint(0, self.action_size + 1)
+            action = np.random.randint(0, self.action_size)
         else:
             # Estimate based on the current state using the q value network
-            action = np.argmax(self.sess.run(self.model, feed_dict={self.inputs_: self.env.state}))
+            action = np.argmax(self.sess.run(self.model, feed_dict={\
+                self.inputs_: np.reshape(self.env.raster_array, [1, *self.env.raster_array.shape])}
+            ))
 
         actions[action] = 1
         return action, actions, explore_prob
@@ -123,7 +142,7 @@ class DeepQNetwork():
         self.env = Environment(render=False, max_projectiles=100, seed=0, scale=5, fov_size=200)
 
     def train(self):
-        self.initialize_memory()
+        self._initialize_memory()
 
         for episode in range(self.num_episodes):
             self._reset_env()
@@ -132,39 +151,40 @@ class DeepQNetwork():
 
             # Stack the frames
 
-            for _ in range(self.max_steps):
+            for step in range(self.max_steps):
                 action, action_vec, explore_prob = self.generate_action(self.explore_prob)
 
-                state = self.env.state
+                state = self.env.raster_array
 
                 next_state, reward = self.env.step(action)
 
                 total_reward += reward
 
-                self.memory.add([state, action_vec, reward, next_state, self.env.done])
+                if step % 5 == 0: # Every 5 frames update the memory
+                    self.memory.add([state, action_vec, reward, next_state, self.env.done])
 
                 batch_sample = self.memory.sample(self.batch_size)
-                batch_states = np.array([batch[3] for batch in batch_sample])
+                batch_states = np.array([batch[0] for batch in batch_sample])
                 batch_actions = np.array([batch[1] for batch in batch_sample])
                 batch_next_states = np.array([batch[3] for batch in batch_sample])
 
                 next_qs = self.sess.run(self.model, feed_dict={self.inputs_: batch_next_states})
 
-                target_q = np.array(self.batch_size)
+                target_q = []
 
                 # Sample a mini-batch and update the network's parameters
                 for i in range(self.batch_size):
                     sample = batch_sample[i]
 
                     if self.env.done:
-                        target_q.append(sample[2]) # add reward r_j
+                       target_q.append(sample[2]) # add reward r_j
                     else:
-                        target_q.append(sample[2] + self.gamma * np.max(next_qs[i]))
+                       target_q.append(sample[2] + self.gamma * np.max(next_qs[i]))
 
                 # Run and compute loss against target_q given action
-                _, loss = self.sess.run(self.model, feed_dict={
+                _, loss = self.sess.run([self.optimizer, self.loss], feed_dict={
                     self.inputs_: batch_states,
-                    self.target_Q: target_q,
+                    self.target_Q: np.array(target_q),
                     self.actions_: batch_actions
                 })
 

@@ -10,6 +10,9 @@ class Memory():
     def add(self, experience):
         self.buffer.append(experience)
 
+    def __len__(self):
+        return len(self.buffer)
+
     @property
     def full(self):
         return len(self.buffer) >= self.max_size
