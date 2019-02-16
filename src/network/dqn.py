@@ -185,7 +185,7 @@ class DeepQNetwork():
 
                 next_state, reward = self.env.step(action)
 
-                self.sess.run(self.reward + reward)
+                self.sess.run(self.reward.assign_add(reward))
 
                 if step % 5 == 0: # Every 5 frames update the memory
                     self.memory.add([state, action_vec, reward, next_state, self.env.done])
@@ -224,5 +224,5 @@ class DeepQNetwork():
                 print('Episode: {}'.format(episode), 'Loss: {}'.format(loss), 'Total reward: {}'.format(self.reward))
 
             if episode % 5 == 0:
-                save_path = self.saver.save(self.sess, "checkpoints/model%s.ckpt" % i)
+                save_path = self.saver.save(self.sess, "checkpoints/model%s.ckpt" % episode)
                 print("Model saved in path: %s" % save_path)
