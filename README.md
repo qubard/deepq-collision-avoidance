@@ -12,3 +12,6 @@ deep q learning applied to collision avoidance
     - should still be able to learn that it's always in the cneter though
     
 - ensure the distribution of +1 rewards to -1 rewards matches in sampling
+    - OR, just tweak the reward function so that the distribution for both is similar
+    - -1 if moving forward that way for N timesteps collides with an enemy and +1 if it doesn't
+    - HER? (hindsight experience replay)

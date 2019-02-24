@@ -29,7 +29,7 @@ class DeepQNetwork():
 
         self._reset_env()
 
-        self.memory = Memory(max_memory_size)
+        self.memory = Memory(max_memory_size, reward_key=2)
 
         self.sess = tf.Session()
 
@@ -37,7 +37,7 @@ class DeepQNetwork():
 
         self.saver = tf.train.Saver()
 
-        self.reward = tf.Variable(0)
+        self.reward = tf.Variable(0.0)
 
         self._initialize_tensorboard()
 
@@ -122,7 +122,6 @@ class DeepQNetwork():
 
             return self.output
 
-
     def _initialize_memory(self):
         while not self.memory.full:
             action, action_vec, explore_prob = self.generate_action(self.explore_prob)
@@ -135,6 +134,7 @@ class DeepQNetwork():
 
             if self.env.done:
                 self._reset_env()
+
         print("Finished initializing memory")
 
     def get_action_for_env(self, env):
