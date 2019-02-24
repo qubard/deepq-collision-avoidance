@@ -9,6 +9,7 @@ if restored:
 
 
 def resolve(env):
+    # The model learns to return "1" for every state so it doesn't work due to sparse rewards
     action = dqn.get_action_for_env(env)
     print(action, env.hash)
     return action
