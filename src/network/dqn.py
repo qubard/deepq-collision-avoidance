@@ -8,8 +8,10 @@ from flenv.src.env import Environment
 class DeepQNetwork():
 
     def __init__(self, input_size, action_size, num_episodes, \
-                 explore_prob=0.1 ,gamma=0.9, learning_rate=0.01, max_memory_size=1000, \
-                 max_steps=10000, batch_size=50, name='DeepQNetwork'):
+                 explore_prob=0.3 ,gamma=0.9, learning_rate=0.01, max_memory_size=10000, \
+                 max_steps=10000, batch_size=250, memory_frame_rate=1, name='DeepQNetwork', checkpoint_dir="checkpoints/"):
+
+        self.memory_frame_rate = memory_frame_rate
         self.input_size = input_size # tuple representing size of input
         self.action_size = action_size # of available actions
         self.batch_size = batch_size
@@ -17,7 +19,9 @@ class DeepQNetwork():
         self.max_steps = max_steps
         self.learning_rate = learning_rate
 
-        assert(batch_size <= max_memory_size, "Batch size must be less than maximum memory size!")
+        self.checkpoint_dir = checkpoint_dir
+
+        assert(batch_size <= max_memory_size)
 
         self.explore_prob = explore_prob
 
@@ -33,7 +37,7 @@ class DeepQNetwork():
 
         self.saver = tf.train.Saver()
 
-        self.reward = tf.Variable()
+        self.reward = tf.Variable(0)
 
         self._initialize_tensorboard()
 
@@ -108,7 +112,7 @@ class DeepQNetwork():
                                           units=self.action_size,
                                           activation=tf.nn.tanh)
 
-            self.Q = tf.reduce_sum(tf.multiply(self.output, self.actions_))
+            self.Q = tf.reduce_sum(tf.multiply(self.output, self.actions_), 1)
 
             self.loss = tf.reduce_mean(tf.square(self.target_Q - self.Q))
 
@@ -133,6 +137,11 @@ class DeepQNetwork():
                 self._reset_env()
         print("Finished initializing memory")
 
+    def get_action_for_env(self, env):
+        return np.argmax(self.sess.run(self.model, feed_dict={\
+                self.inputs_: np.reshape(env.raster_array, [1, *env.raster_array.shape])}
+            ))
+
     # See https://arxiv.org/pdf/1312.5602.pdf
     def generate_action(self, probability):
         explore_prob = np.random.rand()
@@ -143,15 +152,13 @@ class DeepQNetwork():
             action = np.random.randint(0, self.action_size)
         else:
             # Estimate based on the current state using the q value network
-            action = np.argmax(self.sess.run(self.model, feed_dict={\
-                self.inputs_: np.reshape(self.env.raster_array, [1, *self.env.raster_array.shape])}
-            ))
+            action = self.get_action_for_env(self.env)
 
         actions[action] = 1
         return action, actions, explore_prob
 
     def _reset_env(self):
-        self.env = Environment(render=False, max_projectiles=100, seed=0, scale=5, fov_size=200)
+        self.env = Environment(render=False, max_projectiles=60, seed=0, scale=5, fov_size=100)
 
     def restore_checkpoint(self, checkpoint):
         self.restore_last_checkpoint(checkpoint)
@@ -187,12 +194,13 @@ class DeepQNetwork():
 
                 self.sess.run(self.reward.assign_add(reward))
 
-                if step % 5 == 0: # Every 5 frames update the memory
+                if step % self.memory_frame_rate == 0:
                     self.memory.add([state, action_vec, reward, next_state, self.env.done])
 
                 batch_sample = self.memory.sample(self.batch_size)
                 batch_states = np.array([batch[0] for batch in batch_sample])
                 batch_actions = np.array([batch[1] for batch in batch_sample])
+
                 batch_next_states = np.array([batch[3] for batch in batch_sample])
 
                 next_qs = self.sess.run(self.model, feed_dict={self.inputs_: batch_next_states})
@@ -209,7 +217,7 @@ class DeepQNetwork():
                        target_q.append(sample[2] + self.gamma * np.max(next_qs[i]))
 
                 # Run and compute loss against target_q given action
-                _, loss, summary = self.sess.run([self.optimizer, self.loss, self.write_op], feed_dict={
+                _, loss, summary, outputQ = self.sess.run([self.optimizer, self.loss, self.write_op, self.Q], feed_dict={
                     self.inputs_: batch_states,
                     self.target_Q: np.array(target_q),
                     self.actions_: batch_actions
@@ -221,7 +229,7 @@ class DeepQNetwork():
                 if self.env.done:
                     break
 
-                print('Episode: {}'.format(episode), 'Loss: {}'.format(loss), 'Total reward: {}'.format(self.reward))
+                print('Episode: {}'.format(episode), 'Loss: {}'.format(loss), 'Total reward: {}'.format(self.sess.run(self.reward)))
 
             if episode % 5 == 0:
                 save_path = self.saver.save(self.sess, "checkpoints/model%s.ckpt" % episode)
