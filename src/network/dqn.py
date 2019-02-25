@@ -8,7 +8,7 @@ from flenv.src.env import Environment
 class DeepQNetwork():
 
     def __init__(self, input_size, action_size, num_episodes, \
-                 explore_prob=0.3 ,gamma=0.9, learning_rate=0.01, max_memory_size=10000000, \
+                 explore_prob=0.3 ,gamma=0.9, learning_rate=0.01, max_memory_size=1000000, \
                  max_steps=500, batch_size=64, memory_frame_rate=1, name='DeepQNetwork', checkpoint_dir="checkpoints/"):
 
         self.memory_frame_rate = memory_frame_rate
@@ -136,7 +136,7 @@ class DeepQNetwork():
         while not self.memory.full:
             action, action_vec, explore_prob = self.generate_action(step)
 
-            state = self.env.raster_array
+            state = self.env.get_raster()
 
             next_state, reward = self.env.step(action)
 
@@ -152,7 +152,7 @@ class DeepQNetwork():
 
     def get_action_for_env(self, env):
         return np.argmax(self.sess.run(self.model, feed_dict={\
-                self.inputs_: np.reshape(env.raster_array, [1, *env.raster_array.shape])}
+                self.inputs_: np.reshape(env.get_raster(), [1, *env.get_raster().shape])}
             ))
 
     # See https://arxiv.org/pdf/1312.5602.pdf
@@ -172,7 +172,7 @@ class DeepQNetwork():
         return action, actions, explore_probability
 
     def _reset_env(self):
-        self.env = Environment(render=False, max_projectiles=60, scale=5, fov_size=100)
+        self.env = Environment(render=False, max_projectiles=100, scale=5, fov_size=100)
 
     def restore_checkpoint(self, checkpoint):
         self.restore_last_checkpoint(checkpoint)
@@ -202,7 +202,7 @@ class DeepQNetwork():
             for step in range(self.max_steps):
                 action, action_vec, explore_prob = self.generate_action(step)
 
-                state = self.env.raster_array
+                state = self.env.get_raster()
 
                 next_state, reward = self.env.step(action)
 

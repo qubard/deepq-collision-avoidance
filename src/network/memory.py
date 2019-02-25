@@ -25,14 +25,14 @@ class Memory():
             return False
 
         for buffer in self.experience_dict.values():
-            if len(buffer) < self.max_size:
+            if len(buffer) < self.max_size * 0.1: # Must be 5% of full size
                 return False
         return True
 
     # Equal sampling from each dict list of batch_size elements
     def sample(self, batch_size):
         assert(batch_size <= self.max_size and self.n_buffers > 0)
-        actual_size = batch_size / self.n_buffers
+        actual_size = int(batch_size / self.n_buffers)
         lis = []
         for buffer in self.experience_dict.values():
             index = np.random.choice(np.arange(actual_size),
@@ -41,4 +41,4 @@ class Memory():
             for i in index:
                 lis.append(buffer[int(i)])
 
-        return lis
+        return np.random.shuffle(lis)
