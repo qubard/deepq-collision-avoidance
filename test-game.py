@@ -1,7 +1,7 @@
 from flenv.src.env import Environment
 from src.network.dqn import DeepQNetwork
 
-dqn = DeepQNetwork(input_size=[200, 200, 1], action_size=9, num_episodes=1000, memory_frame_rate=60)
+dqn = DeepQNetwork(input_size=[200, 200, 1], action_size=9, num_episodes=1000, memory_frame_rate=3)
 restored = dqn.restore_last_checkpoint(checkpoint=5)
 
 if restored:

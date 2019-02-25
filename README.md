@@ -14,4 +14,5 @@ deep q learning applied to collision avoidance
 - ensure the distribution of +1 rewards to -1 rewards matches in sampling
     - OR, just tweak the reward function so that the distribution for both is similar
     - -1 if moving forward that way for N timesteps collides with an enemy and +1 if it doesn't
-    - HER? (hindsight experience replay)
+    - [HER?](https://becominghuman.ai/learning-from-mistakes-with-hindsight-experience-replay-547fce2b3305_) (hindsight experience replay)
+    - [convnetjs](https://cs.stanford.edu/people/karpathy/convnetjs/demo/rldemo.html)

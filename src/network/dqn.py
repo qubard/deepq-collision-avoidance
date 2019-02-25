@@ -8,8 +8,8 @@ from flenv.src.env import Environment
 class DeepQNetwork():
 
     def __init__(self, input_size, action_size, num_episodes, \
-                 explore_prob=0.3 ,gamma=0.9, learning_rate=0.01, max_memory_size=10000, \
-                 max_steps=10000, batch_size=250, memory_frame_rate=1, name='DeepQNetwork', checkpoint_dir="checkpoints/"):
+                 explore_prob=0.3 ,gamma=0.9, learning_rate=0.01, max_memory_size=10000000, \
+                 max_steps=500, batch_size=64, memory_frame_rate=1, name='DeepQNetwork', checkpoint_dir="checkpoints/"):
 
         self.memory_frame_rate = memory_frame_rate
         self.input_size = input_size # tuple representing size of input
@@ -18,6 +18,11 @@ class DeepQNetwork():
         self.num_episodes = num_episodes
         self.max_steps = max_steps
         self.learning_rate = learning_rate
+
+        self.explore_start = 1.0
+        self.explore_stop = 0.01
+
+        self.decay_rate = 0.0001
 
         self.checkpoint_dir = checkpoint_dir
 
@@ -69,12 +74,14 @@ class DeepQNetwork():
                                           activation=tf.nn.elu
                                           )
 
-            self.conv1_out = tf.nn.elu(self.conv1, name="conv1_out")
+            self.mp0 = tf.layers.max_pooling2d(inputs=self.conv1, strides=[2,2], pool_size=2, name="mp0")
+
+            self.conv1_out = tf.nn.elu(self.mp0, name="conv1_out")
 
             self.conv2 = tf.layers.conv2d(inputs=self.conv1_out,
                                           filters=64,
                                           kernel_size=[4, 4],
-                                          strides=[2, 2],
+                                          strides=[4, 4],
                                           padding="VALID",
                                           kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d(),
                                           bias_initializer=tf.contrib.layers.xavier_initializer(),
@@ -83,7 +90,9 @@ class DeepQNetwork():
                                           activation=tf.nn.elu
                                           )
 
-            self.conv2_out = tf.nn.elu(self.conv2, name="conv2_out")
+            self.mp2 = tf.layers.max_pooling2d(inputs=self.conv2, strides=[2,2], pool_size=2, name="mp2")
+
+            self.conv2_out = tf.nn.elu(self.mp2, name="conv2_out")
 
             self.conv3 = tf.layers.conv2d(inputs=self.conv2_out,
                                           filters=64,
@@ -123,8 +132,9 @@ class DeepQNetwork():
             return self.output
 
     def _initialize_memory(self):
+        step = 0
         while not self.memory.full:
-            action, action_vec, explore_prob = self.generate_action(self.explore_prob)
+            action, action_vec, explore_prob = self.generate_action(step)
 
             state = self.env.raster_array
 
@@ -134,6 +144,9 @@ class DeepQNetwork():
 
             if self.env.done:
                 self._reset_env()
+                step = 0
+            else:
+                step += 1
 
         print("Finished initializing memory")
 
@@ -143,11 +156,12 @@ class DeepQNetwork():
             ))
 
     # See https://arxiv.org/pdf/1312.5602.pdf
-    def generate_action(self, probability):
-        explore_prob = np.random.rand()
+    def generate_action(self, decay_step):
+        exp_exp_tradeoff = np.random.rand()
+        explore_probability = self.explore_stop + (self.explore_start - self.explore_stop) * np.exp(-self.decay_rate * decay_step)
 
         actions = np.zeros(self.action_size)
-        if explore_prob < probability:
+        if explore_probability > exp_exp_tradeoff:
             # take a random action (generate a one-hot vector for it)
             action = np.random.randint(0, self.action_size)
         else:
@@ -155,10 +169,10 @@ class DeepQNetwork():
             action = self.get_action_for_env(self.env)
 
         actions[action] = 1
-        return action, actions, explore_prob
+        return action, actions, explore_probability
 
     def _reset_env(self):
-        self.env = Environment(render=False, max_projectiles=60, seed=0, scale=5, fov_size=100)
+        self.env = Environment(render=False, max_projectiles=60, scale=5, fov_size=100)
 
     def restore_checkpoint(self, checkpoint):
         self.restore_last_checkpoint(checkpoint)
@@ -186,7 +200,7 @@ class DeepQNetwork():
             # Stack the frames
 
             for step in range(self.max_steps):
-                action, action_vec, explore_prob = self.generate_action(self.explore_prob)
+                action, action_vec, explore_prob = self.generate_action(step)
 
                 state = self.env.raster_array
 
