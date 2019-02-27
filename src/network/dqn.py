@@ -133,7 +133,7 @@ class DeepQNetwork():
 
     def _initialize_memory(self):
         step = 0
-        while not self.memory.full:
+        while not self.memory.full(0.01):
             action, action_vec, explore_prob = self.generate_action(step)
 
             state = self.env.get_raster()

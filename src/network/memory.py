@@ -19,15 +19,20 @@ class Memory():
     def __len__(self):
         return len(self.buffer)
 
-    @property
-    def full(self):
+    def full(self, percent=1):
         if self.n_buffers <= 0:
             return False
 
         for buffer in self.experience_dict.values():
-            if len(buffer) < self.max_size * 0.1: # Must be 5% of full size
+            if len(buffer) < self.max_size * percent: # Must be 5% of full size
                 return False
         return True
+
+    def __repr__(self):
+        s = ""
+        for k in self.experience_dict.keys():
+            s += "%s -> %s, " % (k, len(self.experience_dict[k]))
+        return s
 
     # Equal sampling from each dict list of batch_size elements
     def sample(self, batch_size):
@@ -39,6 +44,6 @@ class Memory():
                                      size=actual_size,
                                      replace=False)
             for i in index:
-                lis.append(buffer[int(i)])
+                lis.append(buffer[i])
 
         return np.random.shuffle(lis)
