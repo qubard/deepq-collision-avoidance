@@ -131,7 +131,7 @@ class DeepQNetwork():
                 self.output = tf.layers.dense(inputs=self.fc,
                                               kernel_initializer=tf.contrib.layers.xavier_initializer(),
                                               units=self.action_size,
-                                              activation=tf.nn.tanh)
+                                              activation=None)
 
                 self.Q = tf.reduce_sum(tf.multiply(self.output, self.actions_), 1)
 
