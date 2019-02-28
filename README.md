@@ -29,5 +29,7 @@ currently the problem is that the sampling of rewards causes the agent not to le
     
 # log 
 - feb 27: implemented frame stacking and started training on `50x50x4` inputs, if it doesn't learn still and there are no bugs just reduce the input state size to `36x4` (the many different lines). also implemented gpu acceleration, and realized my last layer's activation wasn't nonlinear so the reward function couldn't grow indefinitely!!
-    
-also one thing I realized is that I should test it on lower input sizes, so currently it's `50x50x4` and the stacked frame buffer takes up ~`0.08mb` per experience so  ~`6gb` memory is required for the full `76800` experiences in the replay buffer.
+- feb 28: yay! tested it on the 5th checkpoint and it turns out that it learns to dodge a little. but it keeps on hitting the border so i'm going to change the environment so that the entities spawn around the player but it can move indefinitely around the scene (ignore the border). alternatively we can just give a reward of -1 for colliding with the border
+
+
+one thing I realized is that I should test it on lower input sizes, so currently it's `50x50x4` and the stacked frame buffer takes up ~`0.08mb` per experience so  ~`6gb` memory is required for the full `76800` experiences in the replay buffer.

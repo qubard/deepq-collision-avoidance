@@ -31,8 +31,11 @@ ACTION_LOOKUP = {
 
 class Environment:
     def __init__(self, scale=1, max_projectiles=60, render=False, keyboard=False, \
-                 seed=random.randint(0, 2147483647), fov_size=50, actionResolver=None, max_age=None, border_dimensions=(100,100)):
+                 seed=random.randint(0, 2147483647), fov_size=50, actionResolver=None, max_age=None, \
+                 border_dimensions=(100,100), framerate=25):
         self.dimensions = (fov_size * 2, fov_size * 2)
+
+        self.framerate = framerate
 
         self.clear_raster()
 
@@ -65,6 +68,8 @@ class Environment:
         self.down = False
 
         self.projectiles = []
+
+        self.n_collisions = 0
 
         self.age = 0
 
@@ -173,6 +178,7 @@ class Environment:
         if self._out_of_bounds(self.player):
             self.player.x = prev_x
             self.player.y = prev_y
+            return True
 
         for entity in self.projectiles:
             if entity.collides(self.player):
@@ -209,6 +215,9 @@ class Environment:
         self.reset_keys()
 
         reward = -1 if collides else 1
+
+        if reward == -1:
+            self.n_collisions += 1
 
         self.total_reward += reward
 
@@ -292,7 +301,7 @@ class Environment:
 
             if self.render:
                 pygame.display.flip()
-                pygame.time.wait(25)
+                pygame.time.wait(self.framerate)
 
             if self.max_age is not None and self.age > self.max_age:
                 self.finished = True

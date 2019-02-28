@@ -10,8 +10,9 @@ class DeepQNetwork():
     def __init__(self, input_size, action_size, num_episodes, \
                  gamma=0.9, learning_rate=0.001, max_memory_size=76800, \
                  max_steps=1500, batch_size=512, memory_frame_rate=1, name='DeepQNetwork',
-                 checkpoint_dir="checkpoints/", prev_frame_size=4):
+                 checkpoint_dir="checkpoints/", prev_frame_size=4, device='cpu'):
 
+        self.device= '/%s:0' % device
         self.memory_frame_rate = memory_frame_rate
         self.input_size = input_size # tuple representing size of input
         self.action_size = action_size # of available actions
@@ -64,7 +65,7 @@ class DeepQNetwork():
         self.write_op = tf.summary.merge_all()
 
     def build(self, name):# Build the network
-        with tf.device('/gpu:0'):
+        with tf.device(self.device):
             with tf.variable_scope(name):
                 self.inputs_ = tf.placeholder(tf.float32, [None, *self.input_size], name="inputs")
 
@@ -181,8 +182,9 @@ class DeepQNetwork():
 
         print("Finished initializing memory")
 
-    def get_action_for_env(self):
-        stacked_state = self._stacked_state()
+    def get_action_for_env(self, stacked_state=None):
+        if stacked_state is None:
+            stacked_state = self._stacked_state()
         return np.argmax(self.sess.run(self.model, feed_dict={\
                 self.inputs_: np.reshape(stacked_state, [1, *self.input_size])}
             ))
@@ -225,10 +227,10 @@ class DeepQNetwork():
     def train(self):
         self._initialize_memory()
 
-        self.state_stack.clear()
-
         for episode in range(self.num_episodes):
             self._reset_env()
+
+            self.state_stack.clear()
 
             self.sess.run(self.reward.assign(0))
 
