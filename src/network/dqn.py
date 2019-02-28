@@ -37,7 +37,11 @@ class DeepQNetwork():
 
         self.memory = Memory(max_memory_size, reward_key=2)
 
-        self.sess = tf.Session()
+        config = tf.ConfigProto()
+        config.gpu_options.allow_growth = True
+        config.gpu_options.per_process_gpu_memory_fraction = 0.4
+        config.allow_soft_placement = True # Incase the gpu isn't available, place on the cpu
+        self.sess = tf.Session(config=config)
 
         self.model = self.build(name)
 
@@ -60,81 +64,82 @@ class DeepQNetwork():
         self.write_op = tf.summary.merge_all()
 
     def build(self, name):# Build the network
-        with tf.variable_scope(name):
-            self.inputs_ = tf.placeholder(tf.float32, [None, *self.input_size], name="inputs")
+        with tf.device('/gpu:0'):
+            with tf.variable_scope(name):
+                self.inputs_ = tf.placeholder(tf.float32, [None, *self.input_size], name="inputs")
 
-            self.actions_ = tf.placeholder(tf.float32, [None, self.action_size], name="actions_")
+                self.actions_ = tf.placeholder(tf.float32, [None, self.action_size], name="actions_")
 
-            self.target_Q = tf.placeholder(tf.float32, [None], name="target")
+                self.target_Q = tf.placeholder(tf.float32, [None], name="target")
 
-            self.conv1 = tf.layers.conv2d(inputs=self.inputs_,
-                                          filters=128,
-                                          kernel_size=[3, 3],
-                                          strides=[1, 1],
-                                          padding="VALID",
-                                          kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d(),
-                                          bias_initializer=tf.contrib.layers.xavier_initializer(),
-                                          use_bias=True,
-                                          name="conv1",
-                                          activation=tf.nn.elu
-                                          )
+                self.conv1 = tf.layers.conv2d(inputs=self.inputs_,
+                                              filters=128,
+                                              kernel_size=[3, 3],
+                                              strides=[1, 1],
+                                              padding="VALID",
+                                              kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d(),
+                                              bias_initializer=tf.contrib.layers.xavier_initializer(),
+                                              use_bias=True,
+                                              name="conv1",
+                                              activation=tf.nn.elu
+                                              )
 
-            self.conv1_out = tf.nn.elu(self.conv1, name="conv1_out")
+                self.conv1_out = tf.nn.elu(self.conv1, name="conv1_out")
 
-            self.mp1 = tf.layers.max_pooling2d(inputs=self.conv1_out, strides=[2,2], pool_size=2, name="mp1")
+                self.mp1 = tf.layers.max_pooling2d(inputs=self.conv1_out, strides=[2,2], pool_size=2, name="mp1")
 
-            self.conv2 = tf.layers.conv2d(inputs=self.mp1,
-                                          filters=256,
-                                          kernel_size=[2, 2],
-                                          strides=[2, 2],
-                                          padding="VALID",
-                                          kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d(),
-                                          bias_initializer=tf.contrib.layers.xavier_initializer(),
-                                          use_bias=True,
-                                          name="conv2",
-                                          activation=tf.nn.elu
-                                          )
+                self.conv2 = tf.layers.conv2d(inputs=self.mp1,
+                                              filters=256,
+                                              kernel_size=[2, 2],
+                                              strides=[2, 2],
+                                              padding="VALID",
+                                              kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d(),
+                                              bias_initializer=tf.contrib.layers.xavier_initializer(),
+                                              use_bias=True,
+                                              name="conv2",
+                                              activation=tf.nn.elu
+                                              )
 
-            self.conv2_out = tf.nn.elu(self.conv2, name="conv2_out")
+                self.conv2_out = tf.nn.elu(self.conv2, name="conv2_out")
 
-            self.mp2 = tf.layers.max_pooling2d(inputs=self.conv2_out, strides=[2,2], pool_size=2, name="mp2")
+                self.mp2 = tf.layers.max_pooling2d(inputs=self.conv2_out, strides=[2,2], pool_size=2, name="mp2")
 
-            self.conv3 = tf.layers.conv2d(inputs=self.mp2,
-                                          filters=512,
-                                          kernel_size=[2, 2],
-                                          strides=[1, 1],
-                                          padding="VALID",
-                                          kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d(),
-                                          bias_initializer=tf.contrib.layers.xavier_initializer(),
-                                          use_bias=True,
-                                          name="conv3",
-                                          activation=tf.nn.elu
-                                          )
+                self.conv3 = tf.layers.conv2d(inputs=self.mp2,
+                                              filters=512,
+                                              kernel_size=[2, 2],
+                                              strides=[1, 1],
+                                              padding="VALID",
+                                              kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d(),
+                                              bias_initializer=tf.contrib.layers.xavier_initializer(),
+                                              use_bias=True,
+                                              name="conv3",
+                                              activation=tf.nn.elu
+                                              )
 
-            self.conv3_out = tf.nn.elu(self.conv3, name="conv3_out")
+                self.conv3_out = tf.nn.elu(self.conv3, name="conv3_out")
 
-            self.mp3 = tf.layers.max_pooling2d(inputs=self.conv3_out, strides=[2,2], pool_size=2, name="mp3")
+                self.mp3 = tf.layers.max_pooling2d(inputs=self.conv3_out, strides=[2,2], pool_size=2, name="mp3")
 
-            self.flatten = tf.contrib.layers.flatten(self.mp3)
+                self.flatten = tf.contrib.layers.flatten(self.mp3)
 
-            self.fc = tf.layers.dense(inputs=self.flatten,
-                                      units=512,
-                                      activation=tf.nn.elu,
-                                      kernel_initializer=tf.contrib.layers.xavier_initializer(),
-                                      name="fc1")
-
-            self.output = tf.layers.dense(inputs=self.fc,
+                self.fc = tf.layers.dense(inputs=self.flatten,
+                                          units=512,
+                                          activation=tf.nn.elu,
                                           kernel_initializer=tf.contrib.layers.xavier_initializer(),
-                                          units=self.action_size,
-                                          activation=tf.nn.tanh)
+                                          name="fc1")
 
-            self.Q = tf.reduce_sum(tf.multiply(self.output, self.actions_), 1)
+                self.output = tf.layers.dense(inputs=self.fc,
+                                              kernel_initializer=tf.contrib.layers.xavier_initializer(),
+                                              units=self.action_size,
+                                              activation=tf.nn.tanh)
 
-            self.loss = tf.reduce_mean(tf.square(self.target_Q - self.Q))
+                self.Q = tf.reduce_sum(tf.multiply(self.output, self.actions_), 1)
 
-            self.optimizer = tf.train.AdamOptimizer(self.learning_rate).minimize(self.loss)
+                self.loss = tf.reduce_mean(tf.square(self.target_Q - self.Q))
 
-            self.sess.run(tf.global_variables_initializer())
+                self.optimizer = tf.train.AdamOptimizer(self.learning_rate).minimize(self.loss)
+
+                self.sess.run(tf.global_variables_initializer())
 
             return self.output
 
@@ -143,6 +148,9 @@ class DeepQNetwork():
 
     def _initialize_memory(self):
         step = 0
+
+        print("Began initializing memory")
+
         while not self.memory.full(0.1):
             action, action_vec = self.generate_action(step)
 

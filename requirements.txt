@@ -4,7 +4,7 @@ bleach==1.5.0
 cycler==0.10.0
 gast==0.2.2
 google-pasta==0.1.4
-grpcio==1.18.0
+grpcio==1.19.0
 h5py==2.9.0
 html5lib==0.9999999
 Keras-Applications==1.0.7
@@ -13,7 +13,7 @@ kiwisolver==1.0.1
 Markdown==3.0.1
 matplotlib==3.0.2
 mock==2.0.0
-numpy==1.16.1
+numpy==1.16.2
 pbr==5.1.2
 protobuf==3.6.1
 pygame==1.9.4
@@ -21,10 +21,11 @@ pyparsing==2.3.1
 python-dateutil==2.8.0
 six==1.12.0
 tb-nightly==1.13.0a20190225
-tensorboard==1.12.2
-tensorflow==1.13.0rc1
-tensorflow-estimator==1.13.0rc0
+tensorboard==1.13.0
+tensorflow-estimator==1.13.0
+tensorflow-gpu==1.13.1
+tensorflow-tensorboard==1.5.1
 termcolor==1.1.0
 tf-estimator-nightly==1.14.0.dev2019022701
-tf-nightly==1.13.0.dev20190226
+tf-nightly-gpu==1.13.0.dev20190214
 Werkzeug==0.14.1

@@ -6,7 +6,7 @@ deep q learning applied to collision avoidance
 - ~~add experience replay (last n frames)~~
 - ~~test blitting using matplotlib (it is way faster)~~
     - ![](figures/fig1.png)
-- gpu acceleration
+- ~~gpu acceleration~~
 
 # helping it learn
 
