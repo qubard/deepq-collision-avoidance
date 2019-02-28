@@ -3,8 +3,8 @@ deep q learning applied to collision avoidance
 
 # todo
 
-- add experience replay (last n frames)
-- test blitting using matplotlib (it is way faster)
+- ~~add experience replay (last n frames)~~
+- ~~test blitting using matplotlib (it is way faster)~~
 - gpu acceleration
 
 # helping it learn
@@ -16,7 +16,7 @@ currently the problem is that the sampling of rewards causes the agent not to le
 - run it for longer (and on the GPU, let the memory get up to 1m+)
 - make the boundaries another input feature (separate tensor), or encode the distance to each one (?)
 - make the player's position (x, y) normalized from 0 to 1 as an input feature?
-    - should still be able to learn that it's always in the cneter though
+    - should still be able to learn that it's always in the center though
     
 - ensure the distribution of +1 rewards to -1 rewards matches in sampling
     - OR, just tweak the reward function so that the distribution for both is similar
@@ -25,3 +25,5 @@ currently the problem is that the sampling of rewards causes the agent not to le
         - there is also [PER](https://medium.freecodecamp.org/improvements-in-deep-q-learning-dueling-double-dqn-prioritized-experience-replay-and-fixed-58b130cc5682)
     - [convnetjs](https://cs.stanford.edu/people/karpathy/convnetjs/demo/rldemo.html)
     - make the -1 reward more likely
+    
+also one thing I realized is that I should test it on lower input sizes, so currentyly it's `50x50x4` and the stacked frame buffer takes up ~`0.08mb` per experience so  ~`6gb` memory is required for the full `76800` experiences in the replay buffer.

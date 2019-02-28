@@ -8,7 +8,7 @@ from flenv.src.env import Environment
 class DeepQNetwork():
 
     def __init__(self, input_size, action_size, num_episodes, \
-                 gamma=0.9, learning_rate=0.001, max_memory_size=153600, \
+                 gamma=0.9, learning_rate=0.001, max_memory_size=76800, \
                  max_steps=1500, batch_size=512, memory_frame_rate=1, name='DeepQNetwork',
                  checkpoint_dir="checkpoints/", prev_frame_size=4):
 
