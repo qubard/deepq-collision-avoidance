@@ -31,10 +31,12 @@ ACTION_LOOKUP = {
 
 class Environment:
     def __init__(self, scale=1, max_projectiles=60, render=False, keyboard=False, \
-                 seed=random.randint(0, 2147483647), fov_size=50, actionResolver=None):
+                 seed=random.randint(0, 2147483647), fov_size=50, actionResolver=None, max_age=None, border_dimensions=(100,100)):
         self.dimensions = (fov_size * 2, fov_size * 2)
 
         self.clear_raster()
+
+        self.max_age = max_age
 
         self.background = None
 
@@ -70,13 +72,15 @@ class Environment:
 
         random.seed(seed)
 
+        self.border_dimensions = border_dimensions
+
         self.spawn_segments = [
-            ((0, -self.player.size), (self.dimensions[0] - self.player.size, -self.player.size), (0, 180)), \
-            ((-self.player.size, 0), (-self.player.size, self.dimensions[1] - self.player.size), (-90, 90)), \
-            ((0, self.dimensions[1] + self.player.size), \
-             (self.dimensions[0] - self.player.size, self.dimensions[1] + self.player.size), (180, 360)), \
-            ((self.dimensions[0] + self.player.size, 0), (self.dimensions[0] + self.player.size, \
-                                                          self.dimensions[1] - self.player.size), (90, 180))]
+            ((0, -self.player.size), (self.border_dimensions[0] - self.player.size, -self.player.size), (0, 180)), \
+            ((-self.player.size, 0), (-self.player.size, self.border_dimensions[1] - self.player.size), (-90, 90)), \
+            ((0, self.border_dimensions[1] + self.player.size), \
+             (self.border_dimensions[0] - self.player.size, self.border_dimensions[1] + self.player.size), (180, 360)), \
+            ((self.border_dimensions[0] + self.player.size, 0), (self.border_dimensions[0] + self.player.size, \
+                                                          self.border_dimensions[1] - self.player.size), (90, 180))]
 
         self.valid_keys = {pygame.K_LEFT: 'left', pygame.K_RIGHT: 'right', pygame.K_DOWN: 'down', pygame.K_UP: 'up'}
 
@@ -108,10 +112,10 @@ class Environment:
 
     def _render_boundaries(self):
         if self.player:
-            self._draw_rect(0, -self.player.size, self.dimensions[0], self.player.size)
-            self._draw_rect(0, self.dimensions[1], self.dimensions[0], self.player.size)
-            self._draw_rect(-self.player.size, 0, self.player.size, self.dimensions[1])
-            self._draw_rect(self.dimensions[0], 0, self.player.size, self.dimensions[1])
+            self._draw_rect(0, -self.player.size, self.border_dimensions[0], self.player.size)
+            self._draw_rect(0, self.border_dimensions[1], self.border_dimensions[0], self.player.size)
+            self._draw_rect(-self.player.size, 0, self.player.size, self.border_dimensions[1])
+            self._draw_rect(self.border_dimensions[0], 0, self.player.size, self.border_dimensions[1])
 
     def _initialize_render(self):
         if self.render:
@@ -178,8 +182,8 @@ class Environment:
 
 
     def _out_of_bounds(self, entity):
-        return entity.x > self.dimensions[0] - entity.size or entity.x <= 0 \
-                or entity.y > self.dimensions[1] - entity.size or entity.y <= 0
+        return entity.x > self.border_dimensions[0] - entity.size or entity.x <= 0 \
+                or entity.y > self.border_dimensions[1] - entity.size or entity.y <= 0
 
     def get_raster(self):
         if self.render:
@@ -204,13 +208,11 @@ class Environment:
         collides = self._tick()
         self.reset_keys()
 
-        reward = -1 if collides else 0.01
+        reward = -1 if collides else 1
 
         self.total_reward += reward
 
         return self.get_raster(), reward # (state, reward)
-
-
 
     # Spawn an entity
     def _spawn_projectile(self):
@@ -221,8 +223,7 @@ class Environment:
             self.projectiles.append(Entity(x=pos[0], y=pos[1], size=self.scale, vx=cos(angle), vy=sin(angle)))
 
     def clear_raster(self):
-        self.raster = np.zeros((self.dimensions[0], self.dimensions[1], 1))
-
+        self.raster = np.zeros((self.dimensions[0], self.dimensions[1]))
 
     def _render_entity(self, entity):
         if self.player:
@@ -273,9 +274,6 @@ class Environment:
 
         self.age += 1
 
-        #if self.player and self._entities_nearby():
-        #    self.fitness += 1
-
         return collides
 
     def run(self):
@@ -296,21 +294,5 @@ class Environment:
                 pygame.display.flip()
                 pygame.time.wait(25)
 
-            """
-            arrr = np.reshape(self.get_raster(), 200 * 200)
-            print(self.hash, arrr, np.argmax(arrr))
-
-            s = ""
-            i = 0
-            for v in arrr:
-                i += 1
-                if v <= 0:
-                    s += "0"
-                else:
-                    s += "1"
-                if i % 200 == 0:
-                    s += "\n"
-            print(s)
-
-            break
-            """
+            if self.max_age is not None and self.age > self.max_age:
+                self.finished = True

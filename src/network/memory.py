@@ -46,4 +46,5 @@ class Memory():
             for i in index:
                 lis.append(buffer[i])
 
-        return np.random.shuffle(lis)
+        np.random.shuffle(lis)
+        return lis
