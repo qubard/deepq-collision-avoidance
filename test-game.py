@@ -2,7 +2,7 @@ from flenv.src.env import Environment
 from src.network.dqn import DeepQNetwork
 
 dqn = DeepQNetwork(input_size=[50, 50, 4], action_size=8, num_episodes=10000, memory_frame_rate=3)
-restored = dqn.restore_last_checkpoint(checkpoint=5)
+restored = dqn.restore_last_checkpoint(checkpoint=15)
 
 if restored:
     print("Restored checkpoint!")
@@ -25,6 +25,6 @@ def resolve(env):
     return action
 
 
-env = Environment(render=True, keyboard=False, scale=5, fov_size=25, actionResolver=resolve, framerate=250)
+env = Environment(render=False, keyboard=False, scale=5, fov_size=25, actionResolver=resolve, framerate=25)
 
 env.run()
