@@ -5,6 +5,7 @@ deep q learning applied to collision avoidance
 
 - ~~add experience replay (last n frames)~~
 - ~~test blitting using matplotlib (it is way faster)~~
+    - ![](figures/fig1.png)
 - gpu acceleration
 
 # helping it learn
@@ -26,4 +27,8 @@ currently the problem is that the sampling of rewards causes the agent not to le
     - [convnetjs](https://cs.stanford.edu/people/karpathy/convnetjs/demo/rldemo.html)
     - make the -1 reward more likely
     
-also one thing I realized is that I should test it on lower input sizes, so currentyly it's `50x50x4` and the stacked frame buffer takes up ~`0.08mb` per experience so  ~`6gb` memory is required for the full `76800` experiences in the replay buffer.
+# log 
+- feb 27: implemented frame stacking and started training on `50x50x4` inputs, if it doesn't learn still and there are no bugs just reduce the input state size to `36x4` (the many different lines)
+    - it would definitely converge quicker
+    
+also one thing I realized is that I should test it on lower input sizes, so currently it's `50x50x4` and the stacked frame buffer takes up ~`0.08mb` per experience so  ~`6gb` memory is required for the full `76800` experiences in the replay buffer.
