@@ -61,6 +61,8 @@ class Environment:
 
         self.player = None
 
+        self.border_dimensions = border_dimensions
+
         self._gen_player()
         self.left = False
         self.right = False
@@ -76,8 +78,6 @@ class Environment:
         self.fitness = 0
 
         random.seed(seed)
-
-        self.border_dimensions = border_dimensions
 
         self.spawn_segments = [
             ((0, -self.player.size), (self.border_dimensions[0] - self.player.size, -self.player.size), (0, 180)), \
@@ -104,7 +104,7 @@ class Environment:
                           y - self.player.y + self.dimensions[1] / 2, width, height))
 
     def _gen_player(self):
-        self.player = Entity(x=self.dimensions[0] / 2, y=self.dimensions[1] / 2, size=self.scale)
+        self.player = Entity(x=self.border_dimensions[0] / 2, y=self.border_dimensions[1] / 2, size=self.scale)
 
     def _entities_nearby(self):
         for entity in self.projectiles:
@@ -229,7 +229,7 @@ class Environment:
             segment = random.choice(self.spawn_segments)
             pos = (random.uniform(segment[0][0], segment[1][0]), random.uniform(segment[0][1], segment[1][1]))
             angle = radians(random.randint(segment[2][0], segment[2][1]))
-            self.projectiles.append(Entity(x=pos[0], y=pos[1], size=self.scale, vx=cos(angle), vy=sin(angle)))
+            self.projectiles.append(Entity(x=pos[0] + cos(angle)*10, y=pos[1]+sin(angle)*10, size=self.scale, vx=cos(angle), vy=sin(angle)))
 
     def clear_raster(self):
         self.raster = np.zeros((self.dimensions[0], self.dimensions[1]))

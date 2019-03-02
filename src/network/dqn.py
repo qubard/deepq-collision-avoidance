@@ -8,9 +8,9 @@ from flenv.src.env import Environment
 class DeepQNetwork():
 
     def __init__(self, input_size, action_size, num_episodes, \
-                 gamma=0.9, learning_rate=0.001, max_memory_size=76800, \
-                 max_steps=1500, batch_size=512, memory_frame_rate=1, name='DeepQNetwork',
-                 checkpoint_dir="checkpoints/", prev_frame_size=4, device='cpu'):
+                 gamma=0.9, learning_rate=0.0001, max_memory_size=25600, \
+                 max_steps=1500, batch_size=256, memory_frame_rate=1, name='DeepQNetwork',
+                 checkpoint_dir="checkpoints/", device='cpu'):
 
         self.device= '/%s:0' % device
         self.memory_frame_rate = memory_frame_rate
@@ -21,7 +21,7 @@ class DeepQNetwork():
         self.max_steps = max_steps
         self.learning_rate = learning_rate
 
-        self.prev_frame_size = prev_frame_size
+        self.prev_frame_size = self.input_size[2]
 
         self.explore_start = 1.0
         self.explore_stop = 0.01
@@ -40,7 +40,6 @@ class DeepQNetwork():
 
         config = tf.ConfigProto()
         config.gpu_options.allow_growth = True
-        config.gpu_options.per_process_gpu_memory_fraction = 0.4
         config.allow_soft_placement = True # Incase the gpu isn't available, place on the cpu
         self.sess = tf.Session(config=config)
 
@@ -207,7 +206,7 @@ class DeepQNetwork():
         return action, actions
 
     def _reset_env(self):
-        self.env = Environment(render=False, max_projectiles=100, scale=5, fov_size=int(self.input_size[1] / 2))
+        self.env = Environment(render=False, max_projectiles=20, scale=5, fov_size=int(self.input_size[1] / 2))
 
     def restore_checkpoint(self, checkpoint):
         self.restore_last_checkpoint(checkpoint)

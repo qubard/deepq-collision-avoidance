@@ -1,3 +1,5 @@
+from math import sqrt
+
 class Entity:
 
     def __init__(self, x, y, size, vx=0, vy=0):
@@ -31,4 +33,4 @@ class Entity:
 
     @property
     def should_delete(self):
-        return self.age >= 50
+        return self.age >= 2 * int(sqrt(2 * (self.size ** 2))) + 1
