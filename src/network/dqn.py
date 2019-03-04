@@ -8,7 +8,7 @@ from flenv.src.env import Environment
 class DeepQNetwork():
 
     def __init__(self, input_size, action_size, num_episodes, \
-                 gamma=0.9, learning_rate=0.0001, max_memory_size=25600, \
+                 gamma=0.9, learning_rate=0.0001, max_memory_size=15000, \
                  max_steps=1500, batch_size=256, memory_frame_rate=1, name='DeepQNetwork',
                  checkpoint_dir="checkpoints/", device='cpu'):
 
@@ -151,7 +151,7 @@ class DeepQNetwork():
 
         print("Began initializing memory")
 
-        while not self.memory.full(0.1):
+        while not self.memory.full():
             action, action_vec = self.generate_action(step)
 
             state = self.env.get_raster()

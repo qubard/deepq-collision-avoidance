@@ -297,7 +297,8 @@ class Environment:
             if self.render:
                 self.screen.blit(self.background, (0, 0))
 
-            self._tick()
+            if not self.keyboard and not self.render:
+                self._tick()
 
             if self.render:
                 pygame.display.flip()
