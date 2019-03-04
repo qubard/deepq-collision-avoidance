@@ -33,7 +33,7 @@ currently the problem is that the sampling of rewards causes the agent not to le
 - feb 28: after training for 7 more hours the agent performs way better than the previous iteration and demonstrates dodging behaviour which is good
 - mar 3:  trained for about a day 
     - ![](figures/animation.gif)
-    - i noticed it clips a lot of the entities because technically it'll clip for like max 3 seconds and lose a bit of reward but it makes that tradeoff a lot so it doesnt entirely avoid obstacles sometimes
+    - i noticed it clips a lot of the entities because technically it'll clip for like max 3 seconds and lose a bit of reward to increase expected future reward but it makes that tradeoff a lot so it doesnt entirely avoid obstacles, making the punishment larger would make these outcomes less likely to be chosen (since our policy chooses the max)
     - the reward for living is +1 and colliding is -1 so it should be like -5 or even worse for colliding..not sure
     - intuitively it should be worse for it to collide with 2 obstacles overlapping each other but .. it doesn't take that into account
 
