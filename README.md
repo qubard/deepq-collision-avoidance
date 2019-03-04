@@ -36,5 +36,6 @@ currently the problem is that the sampling of rewards causes the agent not to le
     - i noticed it clips a lot of the entities because technically it'll clip for like max 3 seconds and lose a bit of reward to increase expected future reward but it makes that tradeoff a lot so it doesnt entirely avoid obstacles, making the punishment larger would make these outcomes less likely to be chosen (since our policy chooses the max)
     - the reward for living is +1 and colliding is -1 so it should be like -5 or even worse for colliding..not sure
     - intuitively it should be worse for it to collide with 2 obstacles overlapping each other but .. it doesn't take that into account
+    - also it keeps on going to the border (it doesn't have a conceptualization of where it is in space)
 
 one thing I realized is that I should test it on lower input sizes, so currently it's `50x50x4` and the stacked frame buffer takes up ~`0.08mb` per experience so  ~`6gb` memory is required for the full `76800` experiences in the replay buffer.
