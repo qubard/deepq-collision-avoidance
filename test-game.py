@@ -22,20 +22,20 @@ def resolve(env):
         return np.random.randint(0, dqn.action_size)
     frames.append(env.get_raster())
     action = dqn.get_action_for_env(stacked_state=np.transpose(np.stack(state_stack)))
-    #np.reshape(action, [1, 200, 200])
-    #print(action, env.hash, "total reward: %s, num collisions: %s, collision percent: %s" % (env.total_reward, env.n_collisions, 100 * env.n_collisions/env.total_reward))
     return action
 
 avg_collisions = 0
 n_experiments = 1
 
 for _ in range(0, n_experiments):
-    env = Environment(render=True, keyboard=False, scale=5, fov_size=50, max_projectiles=20, actionResolver=resolve, framerate=1, max_age=1000)
+    env = Environment(render=False, keyboard=False, scale=5, fov_size=50, max_projectiles=20, actionResolver=resolve, framerate=1, max_age=1000)
 
     env.run()
-    if env.total_reward > 0:
-        avg_collisions += env.total_reward
-        print(env.total_reward)
+
+    state_stack.clear()
+
+    avg_collisions += env.total_reward
+    print(env.total_reward)
 
 print("Total avg score: %s" % (avg_collisions / n_experiments))
 

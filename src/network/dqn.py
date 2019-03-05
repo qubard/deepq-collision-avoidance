@@ -291,6 +291,5 @@ class DeepQNetwork():
 
                 print('Episode: {}'.format(episode), 'Loss: {}'.format(loss), 'Total reward: {}'.format(self.sess.run(self.reward)))
 
-            if episode % 5 == 0:
-                save_path = self.saver.save(self.sess, "checkpoints/model%s.ckpt" % episode)
-                print("Model saved in path: %s" % save_path)
+            save_path = self.saver.save(self.sess, "checkpoints/model%s.ckpt" % episode)
+            print("Model saved in path: %s" % save_path)

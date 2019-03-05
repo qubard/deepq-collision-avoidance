@@ -91,17 +91,17 @@ class Environment:
 
         self._initialize_render()
 
-    def enqueue_action(self, action):
-        self.action = action
-
     def _handle_events(self):
         for event in pygame.event.get():
             self._handle_event(event)
 
     def _draw_rect(self, x, y, width, height):
-        pygame.draw.rect(self.background, (255, 255, 255),
-                         (x - self.player.x + self.dimensions[0] / 2,
-                          y - self.player.y + self.dimensions[1] / 2, width, height))
+        if self.render:
+            pygame.draw.rect(self.background, (255, 255, 255),
+                             (x - self.player.x + self.dimensions[0] / 2,
+                              y - self.player.y + self.dimensions[1] / 2, width, height))
+        else:
+            pass
 
     def _gen_player(self):
         self.player = Entity(x=self.border_dimensions[0] / 2, y=self.border_dimensions[1] / 2, size=self.scale)
@@ -202,12 +202,6 @@ class Environment:
         m.update(self.get_raster())
         return m.hexdigest()
 
-    def take_action(self, action):
-        if action in ACTION_LOOKUP:
-            self._set_keys(ACTION_LOOKUP[action], True)
-        self._tick()
-        self.reset_keys()
-
     def step(self, action):
         if action in ACTION_LOOKUP:
             self._set_keys(ACTION_LOOKUP[action], True)
@@ -218,8 +212,6 @@ class Environment:
 
         if reward == -1:
             self.n_collisions += 1
-
-        self.total_reward += reward
 
         return self.get_raster(), reward # (state, reward)
 
@@ -283,13 +275,19 @@ class Environment:
 
         self.age += 1
 
+        if collides:
+            self.total_reward -= 1
+        else:
+            self.total_reward += 1
+
         return collides
 
     def run(self):
         while not self.finished:
+            if self.actionResolver:
+                self.step(self.actionResolver(self))
+
             if self.keyboard or self.render:
-                if self.actionResolver:
-                    self.step(self.actionResolver(self))
                 self._handle_events()
             else:
                 self.clear_raster()
@@ -297,7 +295,7 @@ class Environment:
             if self.render:
                 self.screen.blit(self.background, (0, 0))
 
-            if not self.keyboard and not self.render:
+            if not self.actionResolver:
                 self._tick()
 
             if self.render:

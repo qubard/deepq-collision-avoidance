@@ -37,7 +37,11 @@ currently the problem is that the sampling of rewards causes the agent not to le
     - the reward for living is +1 and colliding is -1 so it should be like -5 or even worse for colliding..not sure
     - intuitively it should be worse for it to collide with 2 obstacles overlapping each other but .. it doesn't take that into account
     - also it keeps on going to the border (it doesn't have a conceptualization of where it is in space)
-- mar4: another day of training and it keeps improving! avg score increased to 90%
+- mar 4: another day of training and it keeps improving! avg score increased to 90%
     - ![](figures/animation2.gif)
-    
+- mar 5: it turns out that during training the `pygame` raster and `numpy` raster differ because I didn't render the boundaries, so I have to retrain the model again. it explains why the agent keeps on bumping into the wall though
+   - ![](figures/animation3.gif) ![](figures/animation4.gif) 
+   - it doesn't learn with the boundaries (the score here is 81 since it doesn't know what to do with the boundary)
+   - technically the right gif is what the agent was seeing the entire time which explains why it hugs the boundary all the time (no concept of where it is in space)
+   
 one thing I realized is that I should test it on lower input sizes, so currently it's `50x50x4` and the stacked frame buffer takes up ~`0.08mb` per experience so  ~`6gb` memory is required for the full `76800` experiences in the replay buffer.
