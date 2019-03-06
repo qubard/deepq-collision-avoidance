@@ -2,10 +2,11 @@ from math import sqrt
 
 class Entity:
 
-    def __init__(self, x, y, size, vx=0, vy=0):
+    def __init__(self, x, y, size, max_age=None, vx=0, vy=0):
         self.x = x
         self.y = y
         self.size = size
+        self.max_age = max_age
         self.vx = vx
         self.vy = vy
 
@@ -33,4 +34,4 @@ class Entity:
 
     @property
     def should_delete(self):
-        return self.age >= 2 * int(sqrt(2 * (self.size ** 2))) + 1
+        return self.max_age is not None and self.age > self.max_age

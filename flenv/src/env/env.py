@@ -101,7 +101,7 @@ class Environment:
                              (x - self.player.x + self.dimensions[0] / 2,
                               y - self.player.y + self.dimensions[1] / 2, width, height))
         else:
-            pass
+            blit(self.raster, (x - self.player.x + self.dimensions[0] / 2, y - self.player.y + self.dimensions[1] / 2, width, height))
 
     def _gen_player(self):
         self.player = Entity(x=self.border_dimensions[0] / 2, y=self.border_dimensions[1] / 2, size=self.scale)
@@ -221,7 +221,7 @@ class Environment:
             segment = random.choice(self.spawn_segments)
             pos = (random.uniform(segment[0][0], segment[1][0]), random.uniform(segment[0][1], segment[1][1]))
             angle = radians(random.randint(segment[2][0], segment[2][1]))
-            self.projectiles.append(Entity(x=pos[0] + cos(angle)*10, y=pos[1]+sin(angle)*10, size=self.scale, vx=cos(angle), vy=sin(angle)))
+            self.projectiles.append(Entity(x=pos[0] - cos(angle)*10, y=pos[1]-sin(angle)*10, size=self.scale, vx=cos(angle), vy=sin(angle), max_age=self.fov_length + 15))
 
     def clear_raster(self):
         self.raster = np.zeros((self.dimensions[0], self.dimensions[1]))
@@ -246,7 +246,7 @@ class Environment:
         for entity in self.projectiles:
             entity.update()
 
-            if entity.should_delete and self._out_of_bounds(entity):
+            if entity.should_delete:
                 to_remove.append(entity)
 
         for entity in to_remove:
