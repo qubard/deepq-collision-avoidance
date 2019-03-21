@@ -45,5 +45,7 @@ currently the problem is that the sampling of rewards causes the agent not to le
    - technically the right gif is what the agent was seeing the entire time which explains why it hugs the boundary all the time (no concept of where it is in space)
 - mar 7: 2 days of training and it doesn't learn with the boundaries
     - ![](figures/animation5.gif)
+- mar 12: trained for another 2 days, it still produces the same results as mar 7
+    - ![](figures/animation6.gif)
 
 one thing I realized is that I should test it on lower input sizes, so currently it's `50x50x4` and the stacked frame buffer takes up ~`0.08mb` per experience so  ~`6gb` memory is required for the full `76800` experiences in the replay buffer.
