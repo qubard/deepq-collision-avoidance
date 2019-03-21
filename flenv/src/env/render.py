@@ -5,7 +5,7 @@ def clamp(v, a, b):
     return max(min(v, b), a)
 
 # Simple grayscale blitting on a 2D buffer
-def blit(buffer, rect):
+def blit(buffer, rect, val=1.0):
     x, y, w, h = rect
     shape = np.shape(buffer)
     buf_w = shape[0]
@@ -18,4 +18,4 @@ def blit(buffer, rect):
 
     for w_ in range(x1, x2):
         for h_ in range(y1, y2):
-            buffer[w_][h_] = 1.0
+            buffer[w_][h_] = val

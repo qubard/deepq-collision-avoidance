@@ -32,8 +32,10 @@ ACTION_LOOKUP = {
 class Environment:
     def __init__(self, scale=1, max_projectiles=60, render=False, keyboard=False, \
                  seed=random.randint(0, 2147483647), fov_size=50, actionResolver=None, max_age=None, \
-                 border_dimensions=(100,100), framerate=25):
+                 border_dimensions=(100,100), framerate=25, render_boundaries=True):
         self.dimensions = (fov_size * 2, fov_size * 2)
+
+        self.should_render_boundaries = render_boundaries
 
         self.framerate = framerate
 
@@ -95,13 +97,18 @@ class Environment:
         for event in pygame.event.get():
             self._handle_event(event)
 
-    def _draw_rect(self, x, y, width, height):
+    def _draw_rect(self, x, y, width, height, val=1.0, raster=None, static=False):
         if self.render:
-            pygame.draw.rect(self.background, (255, 255, 255),
+            pygame.draw.rect(self.background, (val * 255, val * 255, val * 255),
                              (x - self.player.x + self.dimensions[0] / 2,
                               y - self.player.y + self.dimensions[1] / 2, width, height))
         else:
-            blit(self.raster, (x - self.player.x + self.dimensions[0] / 2, y - self.player.y + self.dimensions[1] / 2, width, height))
+            if raster is None:
+                raster = self.raster
+            if not static:
+                blit(raster, (x - self.player.x + self.dimensions[0] / 2, y - self.player.y + self.dimensions[1] / 2, width, height), val=val)
+            else:
+                blit(raster, (x, y, width, height), val=val)
 
     def _gen_player(self):
         self.player = Entity(x=self.border_dimensions[0] / 2, y=self.border_dimensions[1] / 2, size=self.scale)
@@ -187,13 +194,32 @@ class Environment:
         return False
 
     def _out_of_bounds(self, entity):
-        return entity.x > self.border_dimensions[0] - entity.size or entity.x <= 0 \
-                or entity.y > self.border_dimensions[1] - entity.size or entity.y <= 0
+        return entity.x > self.border_dimensions[0] - entity.size or entity.x < 0 \
+                or entity.y > self.border_dimensions[1] - entity.size or entity.y < 0
+
+    # Distance to each border (x_1, x_2, y_1, y_2) normalized
+    def _border_distance_tuple(self):
+        return (
+            self.player.x / self.border_dimensions[0],
+            abs(self.border_dimensions[0] - self.player.size - self.player.x) / self.border_dimensions[0],
+            self.player.y / self.border_dimensions[1],
+            abs(self.border_dimensions[1] - self.player.size - self.player.y) / self.border_dimensions[1]
+        )
+
+    def render_distance_raster(self):
+        a, b, c, d = self._border_distance_tuple()
+        self._draw_rect(0, 0, self.fov_size, self.fov_size, val=a, raster=self.distance_raster, static=True)
+        self._draw_rect(self.fov_size, 0, self.fov_size, self.fov_size, val=b, raster=self.distance_raster, static=True)
+        self._draw_rect(0, self.fov_size, self.fov_size, self.fov_size, val=c, raster=self.distance_raster, static=True)
+        self._draw_rect(self.fov_size, self.fov_size, self.fov_size, self.fov_size, val=d, raster=self.distance_raster, static=True)
+
+    def get_distance_raster(self):
+        return self.distance_raster
 
     def get_raster(self):
         if self.render:
             return self.pygame_raster_array
-        return self.raster
+        return self.distance_raster, self.raster
 
     @property
     def hash(self):
@@ -204,11 +230,11 @@ class Environment:
     def step(self, action):
         if action in ACTION_LOOKUP:
             self._set_keys(ACTION_LOOKUP[action], True)
-        collides = self._tick()
+        collides = self._tick() # update state
         self.reset_keys()
 
-        dist = sqrt((self.player.x - self.border_dimensions[0] / 2)**2 + (self.player.y - self.border_dimensions[1] / 2)**2)
-        reward = -1 * np.exp(1 + dist/self.fov_length) if collides else 1
+        #dist = sqrt((self.player.x - self.border_dimensions[0] / 2)**2 + (self.player.y - self.border_dimensions[1] / 2)**2)
+        reward = -1 if collides else 1
 
         if reward == -1:
             self.n_collisions += 1
@@ -225,6 +251,7 @@ class Environment:
 
     def clear_raster(self):
         self.raster = np.zeros((self.dimensions[0], self.dimensions[1]))
+        self.distance_raster = np.zeros((self.dimensions[0], self.dimensions[1]))
 
     def _render_entity(self, entity):
         if self.player:
@@ -252,6 +279,13 @@ class Environment:
         for entity in to_remove:
             self.projectiles.remove(entity)
 
+    def _render_player(self):
+        rect = (self.dimensions[0] / 2, self.dimensions[1] / 2, self.player.size, self.player.size)
+        if self.render:
+            pygame.draw.rect(self.background, (255, 255, 255), rect)
+        else:
+            blit(self.raster, rect)
+
     def _tick(self):
         self.background.fill((0, 0, 0))
 
@@ -259,26 +293,19 @@ class Environment:
 
         if self.player:
             collides = self._handle_player_movement()
-            if self.render:
-                pygame.draw.rect(self.background, (255, 255, 255), (self.dimensions[0] / 2, self.dimensions[1] / 2, \
-                                                            self.player.size, self.player.size))
-            else:
-                blit(self.raster, (self.dimensions[0] / 2, self.dimensions[1] / 2, \
-                                                                    self.player.size, self.player.size))
 
+            self._render_player()
+
+        self.render_distance_raster()
         self._move_projectiles()
         self._render_projectiles()
 
-        self._render_boundaries()
+        if self.should_render_boundaries:
+            self._render_boundaries()
 
         self._spawn_projectile()
 
         self.age += 1
-
-        if collides:
-            self.total_reward -= 1
-        else:
-            self.total_reward += 1
 
         return collides
 

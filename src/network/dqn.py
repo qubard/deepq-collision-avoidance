@@ -7,7 +7,7 @@ from flenv.src.env import Environment
 
 class DeepQNetwork():
 
-    def __init__(self, input_size, action_size, num_episodes, \
+    def __init__(self, input_size, action_size, num_episodes, state_stack_size, \
                  gamma=0.9, learning_rate=0.0001, max_memory_size=15000, \
                  max_steps=1500, batch_size=256, memory_frame_rate=1, name='DeepQNetwork',
                  checkpoint_dir="checkpoints/", device='cpu'):
@@ -21,7 +21,7 @@ class DeepQNetwork():
         self.max_steps = max_steps
         self.learning_rate = learning_rate
 
-        self.prev_frame_size = self.input_size[2]
+        self.prev_frame_size = state_stack_size
 
         self.explore_start = 1.0
         self.explore_stop = 0.01
@@ -151,22 +151,25 @@ class DeepQNetwork():
 
         print("Began initializing memory")
 
-        while not self.memory.full():
+        while not self.memory.full(0.5):
             action, action_vec = self.generate_action(step)
 
-            state = self.env.get_raster()
+            s_a, s_b = self.env.get_raster()
 
             self.env.clear_raster() # very important! clear the raster
 
             next_state, reward = self.env.step(action)
+            n_a, n_b = next_state
 
             if step % self.memory_frame_rate == 0:
-                self.state_stack.append(state)
+                self.state_stack.append(s_a)
+                self.state_stack.append(s_b)
 
                 if len(self.state_stack) == self.prev_frame_size:
                     # Stack the current state and the next state
                     stacked_state = self._stacked_state()
-                    self.state_stack.append(next_state)
+                    self.state_stack.append(n_a)
+                    self.state_stack.append(n_b)
                     stacked_next_state = self._stacked_state()
 
                     experience = [stacked_state, action_vec, reward, stacked_next_state, self.env.done]
@@ -190,13 +193,13 @@ class DeepQNetwork():
 
     # See https://arxiv.org/pdf/1312.5602.pdf
     def generate_action(self, decay_step):
-        exp_exp_tradeoff = np.random.rand()
+        exp_tradeoff = np.random.rand()
         explore_probability = self.explore_stop + (self.explore_start - self.explore_stop) * np.exp(-self.decay_rate * decay_step)
 
         actions = np.zeros(self.action_size)
 
-        if exp_exp_tradeoff < explore_probability or len(self.state_stack) < self.prev_frame_size:
-            # take a random action (generate a one-hot vector for it)
+        if exp_tradeoff < explore_probability or len(self.state_stack) < self.prev_frame_size:
+            # Take a random action (generate a one-hot vector for it)
             action = np.random.randint(0, self.action_size)
         else:
             # Estimate based on the current state using the q value network
@@ -206,7 +209,7 @@ class DeepQNetwork():
         return action, actions
 
     def _reset_env(self):
-        self.env = Environment(render=False, max_projectiles=20, scale=5, fov_size=int(self.input_size[1] / 2))
+        self.env = Environment(render=False, max_projectiles=40, scale=5, fov_size=int(self.input_size[1] / 2), render_boundaries=False)
 
     def restore_checkpoint(self, checkpoint):
         self.restore_last_checkpoint(checkpoint)
@@ -233,26 +236,34 @@ class DeepQNetwork():
 
             self.sess.run(self.reward.assign(0))
 
+            sum_loss = 0.0
+
+            n_steps = 0
+
             for step in range(self.max_steps):
                 action, action_vec = self.generate_action(step)
+                n_steps = step
 
-                state = self.env.get_raster()
+                s_a, s_b = self.env.get_raster()
 
                 self.env.clear_raster()
 
                 next_state, reward = self.env.step(action)
+                nx_a, nx_b = next_state
 
                 self.sess.run(self.reward.assign_add(reward))
 
                 if step % self.memory_frame_rate == 0:
 
                     # Stack the frames
-                    self.state_stack.append(state)
+                    self.state_stack.append(s_a)
+                    self.state_stack.append(s_b)
 
                     if len(self.state_stack) == self.prev_frame_size:
                         # Stack the current state and the next state
                         stacked_state = self._stacked_state()
-                        self.state_stack.append(next_state)
+                        self.state_stack.append(nx_a)
+                        self.state_stack.append(nx_b)
                         stacked_next_state = self._stacked_state()
 
                         experience = [stacked_state, action_vec, reward, stacked_next_state, self.env.done]
@@ -286,10 +297,11 @@ class DeepQNetwork():
                 self.writer.add_summary(summary, episode)
                 self.writer.flush()
 
+                sum_loss += loss
+
                 if self.env.done:
                     break
 
-                print('Episode: {}'.format(episode), 'Loss: {}'.format(loss), 'Total reward: {}'.format(self.sess.run(self.reward)))
-
+            print('Episode: {}'.format(episode), 'AvgLoss: {}'.format(sum_loss / n_steps), 'Total reward: {}'.format(self.sess.run(self.reward)))
             save_path = self.saver.save(self.sess, "checkpoints/model%s.ckpt" % episode)
             print("Model saved in path: %s" % save_path)
