@@ -186,7 +186,6 @@ class Environment:
 
         return False
 
-
     def _out_of_bounds(self, entity):
         return entity.x > self.border_dimensions[0] - entity.size or entity.x <= 0 \
                 or entity.y > self.border_dimensions[1] - entity.size or entity.y <= 0
@@ -208,7 +207,8 @@ class Environment:
         collides = self._tick()
         self.reset_keys()
 
-        reward = -1 if collides else 1
+        dist = sqrt((self.player.x - self.border_dimensions[0] / 2)**2 + (self.player.y - self.border_dimensions[1] / 2)**2)
+        reward = -1 * np.exp(1 + dist/self.fov_length) if collides else 1
 
         if reward == -1:
             self.n_collisions += 1
