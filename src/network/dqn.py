@@ -45,7 +45,7 @@ class DeepQNetwork():
 
         self.model = self.build(name)
 
-        self.saver = tf.train.Saver()
+        self.saver = tf.train.Saver(max_to_keep=100)
 
         self.reward = tf.Variable(0.0)
 
@@ -151,25 +151,22 @@ class DeepQNetwork():
 
         print("Began initializing memory")
 
-        while not self.memory.full(0.5):
+        while not self.memory.full():
             action, action_vec = self.generate_action(step)
 
-            s_a, s_b = self.env.get_raster()
+            curr_state = self.env.get_raster()
 
             self.env.clear_raster() # very important! clear the raster
 
             next_state, reward = self.env.step(action)
-            n_a, n_b = next_state
 
             if step % self.memory_frame_rate == 0:
-                self.state_stack.append(s_a)
-                self.state_stack.append(s_b)
+                self.state_stack.append(curr_state)
 
                 if len(self.state_stack) == self.prev_frame_size:
                     # Stack the current state and the next state
                     stacked_state = self._stacked_state()
-                    self.state_stack.append(n_a)
-                    self.state_stack.append(n_b)
+                    self.state_stack.append(next_state)
                     stacked_next_state = self._stacked_state()
 
                     experience = [stacked_state, action_vec, reward, stacked_next_state, self.env.done]
@@ -209,7 +206,7 @@ class DeepQNetwork():
         return action, actions
 
     def _reset_env(self):
-        self.env = Environment(render=False, max_projectiles=40, scale=5, fov_size=int(self.input_size[1] / 2), render_boundaries=False)
+        self.env = Environment(render=False, max_projectiles=40, scale=5, fov_size=int(self.input_size[1] / 2), render_boundaries=True)
 
     def restore_checkpoint(self, checkpoint):
         self.restore_last_checkpoint(checkpoint)
@@ -244,26 +241,23 @@ class DeepQNetwork():
                 action, action_vec = self.generate_action(step)
                 n_steps = step
 
-                s_a, s_b = self.env.get_raster()
+                curr_state = self.env.get_raster()
 
                 self.env.clear_raster()
 
                 next_state, reward = self.env.step(action)
-                nx_a, nx_b = next_state
 
                 self.sess.run(self.reward.assign_add(reward))
 
                 if step % self.memory_frame_rate == 0:
 
                     # Stack the frames
-                    self.state_stack.append(s_a)
-                    self.state_stack.append(s_b)
+                    self.state_stack.append(curr_state)
 
                     if len(self.state_stack) == self.prev_frame_size:
                         # Stack the current state and the next state
                         stacked_state = self._stacked_state()
-                        self.state_stack.append(nx_a)
-                        self.state_stack.append(nx_b)
+                        self.state_stack.append(next_state)
                         stacked_next_state = self._stacked_state()
 
                         experience = [stacked_state, action_vec, reward, stacked_next_state, self.env.done]

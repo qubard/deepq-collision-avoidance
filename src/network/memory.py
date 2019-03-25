@@ -11,10 +11,11 @@ class Memory():
 
     def add(self, experience):
         reward = experience[self.reward_key]
-        if reward not in self.experience_dict:
+        reward_key = -1 if reward < 0 else 1
+        if reward_key not in self.experience_dict:
             self.n_buffers += 1
-            self.experience_dict[reward] = deque(maxlen=self.max_size)
-        self.experience_dict[reward].append(experience)
+            self.experience_dict[reward_key] = deque(maxlen=self.max_size)
+        self.experience_dict[reward_key].append(experience)
 
     def __len__(self):
         return len(self.buffer)
@@ -24,7 +25,7 @@ class Memory():
             return False
 
         for buffer in self.experience_dict.values():
-            if len(buffer) < self.max_size * percent: # Must be 5% of full size
+            if len(buffer) < self.max_size * percent:
                 return False
         return True
 

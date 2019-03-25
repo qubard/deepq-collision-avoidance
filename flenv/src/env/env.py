@@ -185,7 +185,6 @@ class Environment:
         if self._out_of_bounds(self.player):
             self.player.x = prev_x
             self.player.y = prev_y
-            return True
 
         for entity in self.projectiles:
             if entity.collides(self.player):
@@ -219,7 +218,8 @@ class Environment:
     def get_raster(self):
         if self.render:
             return self.pygame_raster_array
-        return self.distance_raster, self.raster
+        #return self.distance_raster, self.raster
+        return self.raster
 
     @property
     def hash(self):
@@ -230,11 +230,10 @@ class Environment:
     def step(self, action):
         if action in ACTION_LOOKUP:
             self._set_keys(ACTION_LOOKUP[action], True)
-        collides = self._tick() # update state
+        collides, reward = self._tick() # update state
         self.reset_keys()
 
         #dist = sqrt((self.player.x - self.border_dimensions[0] / 2)**2 + (self.player.y - self.border_dimensions[1] / 2)**2)
-        reward = -1 if collides else 1
 
         if reward == -1:
             self.n_collisions += 1
@@ -291,12 +290,22 @@ class Environment:
 
         collides = False
 
+        reward = 1.0
+
         if self.player:
             collides = self._handle_player_movement()
+            a, b, c, d = self._border_distance_tuple()
+            near_border = a <= 0.1 or b <= 0.1 or c <= 0.1 or d <= 0.1
+            min_v = min(min(a,b), min(c,d))
+            if near_border:
+                reward = -10.0 * np.exp(1 - min_v/0.1)
+            self.total_reward += reward
 
             self._render_player()
 
-        self.render_distance_raster()
+        if not self.should_render_boundaries:
+            self.render_distance_raster()
+
         self._move_projectiles()
         self._render_projectiles()
 
@@ -307,7 +316,7 @@ class Environment:
 
         self.age += 1
 
-        return collides
+        return collides, reward
 
     def run(self):
         while not self.finished:
