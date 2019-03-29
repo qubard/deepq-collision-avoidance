@@ -235,7 +235,7 @@ class Environment:
 
         #dist = sqrt((self.player.x - self.border_dimensions[0] / 2)**2 + (self.player.y - self.border_dimensions[1] / 2)**2)
 
-        if reward == -1:
+        if collides:
             self.n_collisions += 1
 
         return self.get_raster(), reward # (state, reward)
@@ -297,8 +297,13 @@ class Environment:
             a, b, c, d = self._border_distance_tuple()
             near_border = a <= 0.1 or b <= 0.1 or c <= 0.1 or d <= 0.1
             min_v = min(min(a,b), min(c,d))
+
+            if collides:
+                reward = -1.0
+
             if near_border:
                 reward = -10.0 * np.exp(1 - min_v/0.1)
+
             self.total_reward += reward
 
             self._render_player()

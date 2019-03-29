@@ -8,7 +8,7 @@ from flenv.src.env import Environment
 class DeepQNetwork():
 
     def __init__(self, input_size, action_size, num_episodes, state_stack_size, \
-                 gamma=0.9, learning_rate=0.0001, max_memory_size=15000, \
+                 gamma=0.9, learning_rate=0.0001, max_memory_size=14000, \
                  max_steps=1500, batch_size=256, memory_frame_rate=1, name='DeepQNetwork',
                  checkpoint_dir="checkpoints/", device='cpu'):
 
@@ -39,8 +39,11 @@ class DeepQNetwork():
         self.memory = Memory(max_memory_size, reward_key=2)
 
         config = tf.ConfigProto()
-        config.gpu_options.allow_growth = True
-        config.allow_soft_placement = True # Incase the gpu isn't available, place on the cpu
+
+        if device == 'gpu':
+            config.gpu_options.allow_growth = True
+            config.allow_soft_placement = True # Incase the gpu isn't available, place on the cpu
+
         self.sess = tf.Session(config=config)
 
         self.model = self.build(name)
@@ -53,7 +56,7 @@ class DeepQNetwork():
 
         # Initialize the previous frame stack
         from collections import deque
-        self.state_stack = deque(maxlen=self.prev_frame_size)
+        self.state_stack = deque(maxlen=self.prev_frame_size - 1)
 
     def _initialize_tensorboard(self):
         self.writer = tf.summary.FileWriter("tensorboard", graph=self.sess.graph)
@@ -144,7 +147,9 @@ class DeepQNetwork():
             return self.output
 
     def _stacked_state(self):
-        return np.transpose(np.stack(self.state_stack))
+        arr = [self.state_stack[i] for i in range(0, self.state_stack.maxlen)]
+        arr.append(self.env.get_raster())
+        return np.transpose(np.stack(arr))
 
     def _initialize_memory(self):
         step = 0
@@ -163,13 +168,13 @@ class DeepQNetwork():
             if step % self.memory_frame_rate == 0:
                 self.state_stack.append(curr_state)
 
-                if len(self.state_stack) == self.prev_frame_size:
+                if len(self.state_stack) == self.state_stack.maxlen:
                     # Stack the current state and the next state
                     stacked_state = self._stacked_state()
                     self.state_stack.append(next_state)
                     stacked_next_state = self._stacked_state()
 
-                    experience = [stacked_state, action_vec, reward, stacked_next_state, self.env.done]
+                    experience = [stacked_state, action_vec, reward, stacked_next_state]
                     self.memory.add(experience)
 
             if self.env.done:
@@ -195,7 +200,7 @@ class DeepQNetwork():
 
         actions = np.zeros(self.action_size)
 
-        if exp_tradeoff < explore_probability or len(self.state_stack) < self.prev_frame_size:
+        if exp_tradeoff < explore_probability or len(self.state_stack) < self.state_stack.maxlen:
             # Take a random action (generate a one-hot vector for it)
             action = np.random.randint(0, self.action_size)
         else:
@@ -206,7 +211,8 @@ class DeepQNetwork():
         return action, actions
 
     def _reset_env(self):
-        self.env = Environment(render=False, max_projectiles=40, scale=5, fov_size=int(self.input_size[1] / 2), render_boundaries=True)
+        self.env = Environment(render=False, max_projectiles=40, scale=5, fov_size=int(self.input_size[1] / 2), \
+                               render_boundaries=True)
 
     def restore_checkpoint(self, checkpoint):
         self.restore_last_checkpoint(checkpoint)
@@ -223,10 +229,30 @@ class DeepQNetwork():
         else:
             return False
 
-    def train(self):
+    def simulate(self):
+        frames = []
+        self.state_stack.append(self.env.get_raster())
+        self.state_stack.append(self.env.get_raster())
+        self.state_stack.append(self.env.get_raster())
+        for step in range(self.max_steps):
+            action = self.get_action_for_env()
+
+            curr_state = self.env.get_raster()
+            frames.append(curr_state)
+
+            self.env.clear_raster()
+
+            self.env.step(action)
+
+            if step % self.memory_frame_rate == 0:
+                self.state_stack.append(curr_state)
+
+        return frames, self.env.total_reward
+
+    def train(self, last_checkpoint):
         self._initialize_memory()
 
-        for episode in range(self.num_episodes):
+        for episode in range(last_checkpoint + 1, self.num_episodes):
             self._reset_env()
 
             self.state_stack.clear()
@@ -254,13 +280,13 @@ class DeepQNetwork():
                     # Stack the frames
                     self.state_stack.append(curr_state)
 
-                    if len(self.state_stack) == self.prev_frame_size:
+                    if len(self.state_stack) == self.state_stack.maxlen:
                         # Stack the current state and the next state
                         stacked_state = self._stacked_state()
                         self.state_stack.append(next_state)
                         stacked_next_state = self._stacked_state()
 
-                        experience = [stacked_state, action_vec, reward, stacked_next_state, self.env.done]
+                        experience = [stacked_state, action_vec, reward, stacked_next_state]
                         self.memory.add(experience)
 
                 batch_sample = self.memory.sample(self.batch_size)
@@ -276,10 +302,10 @@ class DeepQNetwork():
                 for i in range(self.batch_size):
                     sample = batch_sample[i]
 
-                    if self.env.done:
-                        target_q.append(sample[2]) # add reward r_j
-                    else:
-                        target_q.append(sample[2] + self.gamma * np.max(next_qs[i]))
+                    # In some implementations the end reward is recorded here for target_q to make this end somewhere
+                    # but our games are infinite, so I'm not sure we need to include that here
+
+                    target_q.append(sample[2] + self.gamma * np.max(next_qs[i])) # r_t + gamma * max_{a \in A} Q(s_{t+1} a)
 
                 # Run and compute loss against target_q given action
                 _, loss, summary, output = self.sess.run([self.optimizer, self.loss, self.write_op, self.output], feed_dict={
