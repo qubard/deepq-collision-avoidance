@@ -3,15 +3,18 @@ import numpy as np
 
 
 class Memory():
-    def __init__(self, max_size, reward_key):
+    def __init__(self, max_size, reward_key, n_keys):
         self.max_size = max_size
+        self.n_keys = n_keys
         self.reward_key = reward_key
         self.experience_dict = {}
         self.n_buffers = 0
 
     def add(self, experience):
         reward = experience[self.reward_key]
-        reward_key = -1 if reward < 0 else 1
+        reward_key = 0
+        if reward == -1.0 or reward == 1.0:
+            reward_key = reward
         if reward_key not in self.experience_dict:
             self.n_buffers += 1
             self.experience_dict[reward_key] = deque(maxlen=self.max_size)
@@ -27,7 +30,7 @@ class Memory():
         for buffer in self.experience_dict.values():
             if len(buffer) < self.max_size * percent:
                 return False
-        return True
+        return len(self.experience_dict.keys()) == self.n_keys
 
     def __repr__(self):
         s = ""

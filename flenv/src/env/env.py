@@ -30,10 +30,12 @@ ACTION_LOOKUP = {
 
 
 class Environment:
-    def __init__(self, scale=1, max_projectiles=60, render=False, keyboard=False, \
-                 seed=random.randint(0, 2147483647), fov_size=50, actionResolver=None, max_age=None, \
-                 border_dimensions=(100,100), framerate=25, render_boundaries=True):
+    def __init__(self, scale=1, max_projectiles=60, render=False, keyboard=False, fov_size=50, actionResolver=None, max_age=None, \
+                 border_dimensions=(100,100), framerate=25, render_boundaries=True, seed=None):
         self.dimensions = (fov_size * 2, fov_size * 2)
+
+        if seed is not None:
+            seed = random.randint(0, 2147483647)
 
         self.should_render_boundaries = render_boundaries
 
@@ -300,8 +302,7 @@ class Environment:
 
             if collides:
                 reward = -1.0
-
-            if near_border:
+            elif near_border:
                 reward = -10.0 * np.exp(1 - min_v/0.1)
 
             self.total_reward += reward

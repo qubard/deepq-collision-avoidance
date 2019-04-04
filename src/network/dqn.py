@@ -8,7 +8,7 @@ from flenv.src.env import Environment
 class DeepQNetwork():
 
     def __init__(self, input_size, action_size, num_episodes, state_stack_size, \
-                 gamma=0.9, learning_rate=0.0001, max_memory_size=14000, \
+                 gamma=0.9, learning_rate=0.0001, max_memory_size=6500, \
                  max_steps=1500, batch_size=256, memory_frame_rate=1, name='DeepQNetwork',
                  checkpoint_dir="checkpoints/", device='cpu'):
 
@@ -36,7 +36,7 @@ class DeepQNetwork():
 
         self._reset_env()
 
-        self.memory = Memory(max_memory_size, reward_key=2)
+        self.memory = Memory(max_memory_size, reward_key=2, n_keys=3)
 
         config = tf.ConfigProto()
 
@@ -47,6 +47,7 @@ class DeepQNetwork():
         self.sess = tf.Session(config=config)
 
         self.model = self.build(name)
+        self.sess.run(tf.global_variables_initializer())
 
         self.saver = tf.train.Saver(max_to_keep=100)
 
@@ -56,7 +57,7 @@ class DeepQNetwork():
 
         # Initialize the previous frame stack
         from collections import deque
-        self.state_stack = deque(maxlen=self.prev_frame_size - 1)
+        self.state_stack = deque(maxlen=self.prev_frame_size)
 
     def _initialize_tensorboard(self):
         self.writer = tf.summary.FileWriter("tensorboard", graph=self.sess.graph)
@@ -66,7 +67,7 @@ class DeepQNetwork():
 
         self.write_op = tf.summary.merge_all()
 
-    def build(self, name):# Build the network
+    def build(self, name):
         with tf.device(self.device):
             with tf.variable_scope(name):
                 self.inputs_ = tf.placeholder(tf.float32, [None, *self.input_size], name="inputs")
@@ -142,14 +143,10 @@ class DeepQNetwork():
 
                 self.optimizer = tf.train.AdamOptimizer(self.learning_rate).minimize(self.loss)
 
-                self.sess.run(tf.global_variables_initializer())
-
             return self.output
 
     def _stacked_state(self):
-        arr = [self.state_stack[i] for i in range(0, self.state_stack.maxlen)]
-        arr.append(self.env.get_raster())
-        return np.transpose(np.stack(arr))
+        return np.transpose(np.stack(self.state_stack))
 
     def _initialize_memory(self):
         step = 0
@@ -196,7 +193,7 @@ class DeepQNetwork():
     # See https://arxiv.org/pdf/1312.5602.pdf
     def generate_action(self, decay_step):
         exp_tradeoff = np.random.rand()
-        explore_probability = self.explore_stop + (self.explore_start - self.explore_stop) * np.exp(-self.decay_rate * decay_step)
+        explore_probability = self.explore_stop + (self.explore_start - self.explore_stop) * np.exp(-self.decay_rate * decay_step / self.memory_frame_rate)
 
         actions = np.zeros(self.action_size)
 
@@ -211,7 +208,7 @@ class DeepQNetwork():
         return action, actions
 
     def _reset_env(self):
-        self.env = Environment(render=False, max_projectiles=40, scale=5, fov_size=int(self.input_size[1] / 2), \
+        self.env = Environment(render=False, max_projectiles=60, scale=5, fov_size=int(self.input_size[1] / 2), \
                                render_boundaries=True)
 
     def restore_checkpoint(self, checkpoint):
@@ -230,7 +227,9 @@ class DeepQNetwork():
             return False
 
     def simulate(self):
+        self._reset_env()
         frames = []
+        self.state_stack.append(self.env.get_raster())
         self.state_stack.append(self.env.get_raster())
         self.state_stack.append(self.env.get_raster())
         self.state_stack.append(self.env.get_raster())
