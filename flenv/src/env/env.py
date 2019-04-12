@@ -5,7 +5,7 @@ from .render import blit
 
 from hashlib import md5
 
-from math import radians, cos, sin, sqrt
+from math import radians, cos, sin, sqrt, floor
 
 LEFT = 0
 RIGHT = 1
@@ -297,13 +297,13 @@ class Environment:
         if self.player:
             collides = self._handle_player_movement()
             a, b, c, d = self._border_distance_tuple()
-            near_border = a <= 0.1 or b <= 0.1 or c <= 0.1 or d <= 0.1
-            min_v = min(min(a,b), min(c,d))
+            #near_border = a <= 0.1 or b <= 0.1 or c <= 0.1 or d <= 0.1
+            #min_v = min(min(a,b), min(c,d))
 
             if collides:
                 reward = -1.0
-            elif near_border:
-                reward = -10.0 * np.exp(1 - min_v/0.1)
+            else:
+                reward = 1.0
 
             self.total_reward += reward
 
@@ -323,6 +323,50 @@ class Environment:
         self.age += 1
 
         return collides, reward
+
+    def tendril_features(self, maxlength=20, arc=360, angle_per=20):
+        # relative to the center (px, py)
+        n_segments = arc // angle_per
+        segments = [0] * n_segments
+
+        px = self.player.x + self.player.size / 2
+        py = self.player.y + self.player.size / 2
+        offset = max(0.0, floor(sqrt(2*(self.player.size /2)**2)) - 1.0)
+
+        for angle in range(0, arc, angle_per):
+            i = angle // angle_per
+            angle = radians(angle)
+            dx = sin(angle)
+            dy = cos(angle)
+
+            for length in range(0, maxlength):  # O(maxlength*8*|n|)
+                x = px + length * dx
+                y = py + length * dy
+                collides = False
+                for entity in self.projectiles:
+                    if entity.collides_point(x, y):
+                        collides = True  # Technically we don't have any sort of sorted array w.r.t distance to center so this is always worst case
+
+                if collides:
+                    segments[i] = min(max(0.0, (float(length) + offset) / float(maxlength)), 1.0)  # normalized
+                    break
+        return segments
+
+    def render_tendrils(self, maxlength=20, arc=360, angle_per=20):
+        n_segments = arc // angle_per
+
+        px = self.player.x + self.player.size / 2
+        py = self.player.y + self.player.size / 2
+        for angle in range(0, arc, angle_per):
+            i = angle // angle_per
+            angle = radians(angle)
+            dx = sin(angle)
+            dy = cos(angle)
+
+            for length in range(0, maxlength):  # O(maxlength*8*|n|)
+                x = px + length * dx
+                y = py + length * dy
+                self._draw_rect(x, y, 1, 1)
 
     def run(self):
         while not self.finished:

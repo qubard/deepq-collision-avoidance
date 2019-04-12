@@ -8,8 +8,8 @@ from flenv.src.env import Environment
 class DeepQNetwork():
 
     def __init__(self, input_size, action_size, num_episodes, state_stack_size, \
-                 gamma=0.9, learning_rate=0.0001, max_memory_size=6500, \
-                 max_steps=1500, batch_size=256, memory_frame_rate=1, name='DeepQNetwork',
+                 gamma=0.9, learning_rate=0.0001, max_memory_size=5500, \
+                 max_steps=1500, batch_size=300, memory_frame_rate=1, name='DeepQNetwork',
                  checkpoint_dir="checkpoints/", device='cpu'):
 
         self.device= '/%s:0' % device
@@ -53,7 +53,7 @@ class DeepQNetwork():
 
         self.reward = tf.Variable(0.0)
 
-        self._initialize_tensorboard()
+        #self._initialize_tensorboard()
 
         # Initialize the previous frame stack
         from collections import deque
@@ -154,7 +154,7 @@ class DeepQNetwork():
         print("Began initializing memory")
 
         while not self.memory.full():
-            action, action_vec = self.generate_action(step)
+            action, action_vec = self.generate_action(0)
 
             curr_state = self.env.get_raster()
 
@@ -208,8 +208,8 @@ class DeepQNetwork():
         return action, actions
 
     def _reset_env(self):
-        self.env = Environment(render=False, max_projectiles=60, scale=5, fov_size=int(self.input_size[1] / 2), \
-                               render_boundaries=True)
+        self.env = Environment(render=False, max_projectiles=40, scale=5, fov_size=int(self.input_size[1] / 2), \
+                               render_boundaries=False)
 
     def restore_checkpoint(self, checkpoint):
         self.restore_last_checkpoint(checkpoint)
@@ -297,6 +297,8 @@ class DeepQNetwork():
 
                 target_q = []
 
+                print(len(batch_states), self.batch_size)
+
                 # Sample a mini-batch and update the network's parameters
                 for i in range(self.batch_size):
                     sample = batch_sample[i]
@@ -306,15 +308,16 @@ class DeepQNetwork():
 
                     target_q.append(sample[2] + self.gamma * np.max(next_qs[i])) # r_t + gamma * max_{a \in A} Q(s_{t+1} a)
 
+                print("finished computing target_q")
+
                 # Run and compute loss against target_q given action
-                _, loss, summary, output = self.sess.run([self.optimizer, self.loss, self.write_op, self.output], feed_dict={
+                _, loss, output = self.sess.run([self.optimizer, self.loss, self.output], feed_dict={
                     self.inputs_: batch_states,
                     self.target_Q: np.array(target_q),
                     self.actions_: batch_actions
                 })
 
-                self.writer.add_summary(summary, episode)
-                self.writer.flush()
+                print(loss)
 
                 sum_loss += loss
 

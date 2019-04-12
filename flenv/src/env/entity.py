@@ -22,6 +22,16 @@ class Entity:
 
         return True
 
+    def collides_point(self, x, y):
+
+        if self.x > y + 1 or x > self.x + self.size:
+            return False
+
+        if self.y + self.size < y or y + 1 < self.y:
+            return False
+
+        return True
+
     def update(self):
         self.x += self.vx
         self.y += self.vy

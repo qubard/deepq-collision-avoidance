@@ -1,9 +1,11 @@
-from src.network.dqn import DeepQNetwork
+from src.network.ddqn import DuelingDeepQNetwork
 
-dqn = DeepQNetwork(input_size=[100, 100, 4], max_steps=1000, \
-                   state_stack_size=4, action_size=9, num_episodes=10000, memory_frame_rate=3)
-dqn.restore_last_checkpoint(69)
-frames, reward = dqn.simulate()
+
+ddqn = DuelingDeepQNetwork(input_size=[80, 80, 4], batch_size=60, learning_rate=0.0003, max_memory_size=5500, state_stack_size=4, action_size=9, \
+                              num_episodes=10000, memory_frame_rate=3, device='gpu')
+
+ddqn.restore_last_checkpoint(23)
+frames, reward = ddqn.simulate()
 
 import imageio
 
