@@ -47,5 +47,7 @@ currently the problem is that the sampling of rewards causes the agent not to le
     - ![](figures/animation5.gif)
 - mar 12: trained for another 2 days, it still produces the same results as mar 7
     - ![](figures/animation6.gif)
+- apr 18: I changed basically everything. using DDQN + rmsprop + custom algo to prevent overfitting :) 97.2%. Almost done writing paper
+- ![](figures/972-36.gif)
 
 one thing I realized is that I should test it on lower input sizes, so currently it's `50x50x4` and the stacked frame buffer takes up ~`0.08mb` per experience so  ~`6gb` memory is required for the full `76800` experiences in the replay buffer.
