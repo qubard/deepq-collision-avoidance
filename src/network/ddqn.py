@@ -5,14 +5,15 @@ from . import DeepQNetwork
 from flenv.src.env import Environment
 
 import numpy as np
+from sklearn.model_selection import KFold
 
 
 class DuelingDeepQNetwork(DeepQNetwork):
 
     def __init__(self, input_size, action_size, num_episodes, state_stack_size, \
-                 gamma=0.9, learning_rate=0.00001, max_memory_size=5500, \
-                 max_steps=1500, batch_size=300, memory_frame_rate=1, name='DeepQNetwork',
-                 checkpoint_dir="checkpoints/", device='cpu'):
+                 gamma=0.9, learning_rate=0.0001, max_memory_size=22000, \
+                 max_steps=1500, batch_size=32, memory_frame_rate=1, name='DeepQNetwork',
+                 checkpoint_dir="checkpoints/", mem_reset_rate=None, device='cpu'):
 
         self.device= '/%s:0' % device
         self.memory_frame_rate = memory_frame_rate
@@ -23,7 +24,11 @@ class DuelingDeepQNetwork(DeepQNetwork):
         self.max_steps = max_steps
         self.learning_rate = learning_rate
 
+        self.mem_reset_rate = mem_reset_rate
+
         self.prev_frame_size = state_stack_size
+
+        self.memory = None
 
         self.explore_start = 1.0
         self.explore_stop = 0.01
@@ -38,7 +43,7 @@ class DuelingDeepQNetwork(DeepQNetwork):
 
         self._reset_env()
 
-        self.memory = Memory(max_memory_size, reward_key=2, n_keys=2)
+        self.max_memory_size = max_memory_size
 
         config = tf.ConfigProto()
 
@@ -163,8 +168,10 @@ class DuelingDeepQNetwork(DeepQNetwork):
 
     def _initialize_memory(self):
         step = 0
+        self.memory = Memory(self.max_memory_size, reward_key=2, n_keys=2)
 
         print("Began initializing memory")
+        n_episodes = 0
 
         while not self.memory.full():
             action, action_vec = self.generate_action(0)
@@ -178,7 +185,7 @@ class DuelingDeepQNetwork(DeepQNetwork):
             if step % self.memory_frame_rate == 0:
                 self.state_stack.append(curr_state)
 
-                if len(self.state_stack) == self.state_stack.maxlen:
+                if self.env.entities_nearby() and len(self.state_stack) == self.state_stack.maxlen:
                     # Stack the current state and the next state
                     stacked_state = self._stacked_state()
                     self.state_stack.append(next_state)
@@ -187,23 +194,22 @@ class DuelingDeepQNetwork(DeepQNetwork):
                     experience = [stacked_state, action_vec, reward, stacked_next_state]
                     self.memory.add(experience)
 
-            if self.env.done:
+            if self.env.age > self.max_steps:
                 self._reset_env()
                 self.state_stack.clear()
                 step = 0
+                n_episodes += 1
             else:
                 step += 1
 
-        print("Finished initializing memory")
+        print("Finished initializing memory in %s episodes" % n_episodes)
 
     def get_action_for_env(self, stacked_state=None):
         if stacked_state is None:
             stacked_state = self._stacked_state()
-        out = self.sess.run(self.model, feed_dict={ \
+        return np.argmax(self.sess.run(self.model, feed_dict={ \
             self.inputs_: np.reshape(stacked_state, [1, *self.input_size])}
-                                       )
-        print(out)
-        return np.argmax(out)
+        ))
 
         # See https://arxiv.org/pdf/1312.5602.pdf
 
@@ -225,8 +231,8 @@ class DuelingDeepQNetwork(DeepQNetwork):
         return action, actions
 
     def _reset_env(self):
-        self.env = Environment(render=False, max_projectiles=60, scale=5, fov_size=int(self.input_size[1] / 2), \
-                               render_boundaries=False)
+        self.env = Environment(render=False, max_projectiles=60, seed=0, scale=5, fov_size=int(self.input_size[1] / 2), \
+                               render_boundaries=True)
 
     def restore_checkpoint(self, checkpoint):
         self.restore_last_checkpoint(checkpoint)
@@ -240,8 +246,7 @@ class DuelingDeepQNetwork(DeepQNetwork):
                 ckpt_name = "model%s.ckpt" % checkpoint
             self.saver.restore(self.sess, os.path.join(self.checkpoint_dir, ckpt_name))
             return True
-        else:
-            return False
+        return False
 
     def simulate(self):
         self._reset_env()
@@ -254,10 +259,9 @@ class DuelingDeepQNetwork(DeepQNetwork):
             action = self.get_action_for_env()
 
             curr_state = self.env.get_raster()
-            frames.append(curr_state)
+            frames.append(curr_state.astype('float32'))
 
             self.env.clear_raster()
-            print(action)
 
             self.env.step(action)
 
@@ -267,77 +271,90 @@ class DuelingDeepQNetwork(DeepQNetwork):
         return frames, self.env.total_reward
 
     def train(self, last_checkpoint):
-        self._initialize_memory()
+        reset = False
 
-        for episode in range(last_checkpoint + 1, self.num_episodes):
+        for episode in range(last_checkpoint, self.num_episodes):
             self._reset_env()
 
             self.state_stack.clear()
 
             self.sess.run(self.reward.assign(0))
 
-            sum_loss = 0.0
+            self._initialize_memory()
 
-            n_steps = 0
+            data = self.memory.queue()
 
-            for step in range(self.max_steps):
-                action, action_vec = self.generate_action(step)
-                n_steps = step
+            testLoss = 1
 
-                curr_state = self.env.get_raster()
+            while testLoss > 0.015:
+                kf = KFold(n_splits=self.max_memory_size // self.batch_size, random_state=True)
 
-                self.env.clear_raster()
+                for train_index, test_index in kf.split(data):
+                    train = np.array([data[i] for i in train_index])
+                    train = np.split(train, len(train_index) // self.batch_size)
 
-                next_state, reward = self.env.step(action)
+                    for fold in range(0, self.max_memory_size // self.batch_size - 1):
+                        batch_sample = train[fold]
+                        batch_states = np.array([batch[0] for batch in batch_sample])
+                        batch_actions = np.array([batch[1] for batch in batch_sample])
+                        batch_next_states = np.array([batch[3] for batch in batch_sample])
 
-                self.sess.run(self.reward.assign_add(reward))
+                        next_qs = self.sess.run(self.model, feed_dict={self.inputs_: batch_next_states})
 
-                if step % self.memory_frame_rate == 0:
+                        target_q = []
 
-                    # Stack the frames
-                    self.state_stack.append(curr_state)
+                        # Sample a mini-batch and update the network's parameters
+                        for i in range(len(batch_sample)):
+                            sample = batch_sample[i]
 
-                    if len(self.state_stack) == self.state_stack.maxlen:
-                        # Stack the current state and the next state
-                        stacked_state = self._stacked_state()
-                        self.state_stack.append(next_state)
-                        stacked_next_state = self._stacked_state()
+                            # In some implementations the end reward is recorded here for target_q to make this end somewhere
+                            # but our games are infinite, so I'm not sure we need to include that here
 
-                        experience = [stacked_state, action_vec, reward, stacked_next_state]
-                        self.memory.add(experience)
+                            target_q.append(
+                                sample[2] + self.gamma * np.max(next_qs[i]))  # r_t + gamma * max_{a \in A} Q(s_{t+1} a)
 
-                batch_sample = self.memory.sample(self.batch_size)
-                batch_states = np.array([batch[0] for batch in batch_sample])
-                batch_actions = np.array([batch[1] for batch in batch_sample])
-                batch_next_states = np.array([batch[3] for batch in batch_sample])
+                        # Run and compute loss against target_q given action
+                        _, loss, output = self.sess.run([self.optimizer, self.loss, self.output], feed_dict={
+                            self.inputs_: batch_states,
+                            self.target_Q: np.array(target_q),
+                            self.actions_: batch_actions
+                        })
 
-                next_qs = self.sess.run(self.model, feed_dict={self.inputs_: batch_next_states})
+                    test = np.array([data[i] for i in test_index])
+                    batch_sample = test
+                    batch_states = np.array([batch[0] for batch in batch_sample])
+                    batch_actions = np.array([batch[1] for batch in batch_sample])
+                    batch_next_states = np.array([batch[3] for batch in batch_sample])
 
-                target_q = []
+                    next_qs = self.sess.run(self.model, feed_dict={self.inputs_: batch_next_states})
 
-                # Sample a mini-batch and update the network's parameters
-                for i in range(self.batch_size):
-                    sample = batch_sample[i]
+                    target_q = []
 
-                    # In some implementations the end reward is recorded here for target_q to make this end somewhere
-                    # but our games are infinite, so I'm not sure we need to include that here
+                    # Sample a mini-batch and update the network's parameters
+                    for i in range(len(batch_sample)):
+                        sample = batch_sample[i]
 
-                    target_q.append(
-                        sample[2] + self.gamma * np.max(next_qs[i]))  # r_t + gamma * max_{a \in A} Q(s_{t+1} a)
+                        # In some implementations the end reward is recorded here for target_q to make this end somewhere
+                        # but our games are infinite, so I'm not sure we need to include that here
 
-                # Run and compute loss against target_q given action
-                _, loss, output = self.sess.run([self.optimizer, self.loss, self.output], feed_dict={
-                    self.inputs_: batch_states,
-                    self.target_Q: np.array(target_q),
-                    self.actions_: batch_actions
-                })
+                        target_q.append(sample[2] + self.gamma * np.max(next_qs[i]))  # r_t + gamma * max_{a \in A} Q(s_{t+1} a)
 
-                sum_loss += loss
+                    # Run and compute loss against target_q given action
+                    _, loss, output = self.sess.run([self.optimizer, self.loss, self.output], feed_dict={
+                        self.inputs_: batch_states,
+                        self.target_Q: np.array(target_q),
+                        self.actions_: batch_actions
+                    })
 
-                if self.env.done:
-                    break
+                    testLoss = loss
 
-            print('Episode: {}'.format(episode), 'AvgLoss: {}'.format(sum_loss / n_steps),
-                  'Total reward: {}'.format(self.sess.run(self.reward)))
+                    if testLoss <= 0.015:
+                        break
+
+                    print("Test loss: %s" % loss)
+
+                print("Finished k=%s folds Test loss: %s" % (self.max_memory_size // self.batch_size, loss))
+
+            #print('Episode: {}'.format(episode), 'AvgLoss: {}'.format(sum_loss / n_steps),  'Total reward: {}'.format(self.sess.run(self.reward)))
             save_path = self.saver.save(self.sess, "checkpoints/model%s.ckpt" % episode)
             print("Model saved in path: %s" % save_path)
